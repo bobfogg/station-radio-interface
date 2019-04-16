@@ -1,6 +1,6 @@
-import { BaseStation } from 'server/base_station';
+import { BaseStation } from './server/base_station';
 
-const station = BaseStation({
+const station = new BaseStation({
     radios: [
         '/dev/ttyACM0',
         '/dev/ttyACM1',

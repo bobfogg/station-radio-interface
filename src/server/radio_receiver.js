@@ -9,6 +9,7 @@ class RadioReceiver extends EventEmitter {
     this.port_uri = opts.port_uri;
     this.baud_rate = opts.baud_rate;
     this.reader;
+    console.log('initialized', this.port_uri, 'at', this.baud_rate);
   }
 
   start() {
@@ -31,17 +32,9 @@ class RadioReceiver extends EventEmitter {
     });
     const parser = new Readline();
     parser.on('data', (line) => {
-      let vals = line.split(',');
-      console.log(line);
-      if (vals.length == 2) {
-        let rssi = parseInt(vals[1]);
-        this.emit('beep', {
-          tag_serial: vals[0],
-          rssi: rssi,
-          received_at: moment(new Date()),
-          port_uri: this.port_uri
-        });
-      }
+      const beep = JSON.parse(line);
+      beep.received_at = moment(new Date());
+      this.emit('beep', beep);
     });
     return port.pipe(parser);
   }
