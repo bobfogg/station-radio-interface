@@ -1,0 +1,22 @@
+{
+  "name": "station-radio-interface",
+  "version": "1.0.0",
+  "description": "read data from radio serial ports / write to disk",
+  "main": "index.js",
+  "scripts": {
+    "start": "node lib/index.js",
+    "build": "npm run babel",
+    "babel": "babel src -d lib",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "moment": "^2.24.0",
+    "serialport": "^7.1.4"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-preset-env": "^1.7.0"
+  }
+}
