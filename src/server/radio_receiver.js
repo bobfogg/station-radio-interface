@@ -14,6 +14,11 @@ class RadioReceiver extends EventEmitter {
     console.log('initialized', this.port_uri, 'at', this.baud_rate, 'channel', this.channel);
   }
 
+  log(...msgs) {
+    msgs.unshift(moment(new Date()));
+    console.log(...msgs);
+  }
+
   data() {
     return {
       port_uri: this.port_uri,

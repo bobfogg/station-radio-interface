@@ -1,4 +1,5 @@
 import { RadioReceiver } from './radio_receiver';
+const fs = require('fs');
 const moment = require('moment');
 
 class BaseStation {
@@ -11,7 +12,13 @@ class BaseStation {
       '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.1:1.0': 5,
     }
     this.active_radios = {};
-    console.log('initializing radio receiver');
+    this.data_filename = opts.data_filename;
+    this.log('initializing radio receiver');
+  }
+
+  log(...msgs) {
+    msgs.unshift(moment(new Date()));
+    console.log(...msgs);
   }
 
   getRadioReport() {
@@ -23,7 +30,7 @@ class BaseStation {
   }
 
   start() {
-    console.log('starting radio receivers');
+    this.log('starting radio receivers');
     Object.keys(this.radios).forEach((port) => {
       let channel = this.radios[port];
       let beep_reader = new RadioReceiver({
@@ -32,11 +39,11 @@ class BaseStation {
         channel: channel
       });
       beep_reader.on('beep', (beep => {
-        console.log(JSON.stringify(beep));
+        this.handle_beep(beep);
       }));
       beep_reader.start();
       beep_reader.on('open', (info) => {
-        console.log('radio opened', info);
+        this.log('radio opened', info);
         this.active_radios[info.port_uri] = info;
       });
       beep_reader.on('close', (info) => {
@@ -44,6 +51,12 @@ class BaseStation {
           delete this.active_radios[info.port_uri];
         }
       })
+    });
+  }
+
+  handle_beep(beep) {
+    fs.appendFile(this.data_filename, JSON.stringify(beep)+'\n', (err) => {
+      if (err) throw err;
     });
   }
 }
