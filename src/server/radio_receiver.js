@@ -38,17 +38,18 @@ class RadioReceiver extends EventEmitter {
       baudRate: this.baud_rate
     });
     port.on('open', () => {
-      console.log('opened serial interface to lifetag', this.port_uri, this.baud_rate)
+      let msg = ['opened serial interface to lifetag', this.port_uri, this.baud_rate].join(' ');
+      this.emit('log', msg);
       this.active = true;
       this.emit('open', this.data());
     });
     port.on('close', () => {
-      console.log('this port was closed');
+      this.emit('log', 'this port was closed');
       this.active = false;
       this.emit('close', this.data());
     });
     port.on('error', (err) => {
-      console.log('serial error', err);
+      this.emit('log', 'serial error '+ err);
       this.active = false;
       this.emit('close', this.data());
     });
