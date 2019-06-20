@@ -15,7 +15,7 @@ class RadioReceiver extends EventEmitter {
   }
 
   log(...msgs) {
-    msgs.unshift(moment(new Date()));
+    msgs.unshift(moment(new Date()).format('YYYY-MM-DD HH:mm:ss'));
     console.log(...msgs);
   }
 
@@ -34,7 +34,7 @@ class RadioReceiver extends EventEmitter {
   }
 
   buildSerialInterface() {
-    const port = SerialPort(this.port_uri, {
+    const port = new SerialPort(this.port_uri, {
       baudRate: this.baud_rate
     });
     port.on('open', () => {
@@ -55,19 +55,13 @@ class RadioReceiver extends EventEmitter {
     const parser = new Readline();
     parser.on('data', (line) => {
       const raw_beep = JSON.parse(line);
-      switch (raw_beep.type) {
-      case 'beep':
-        this.emit('beep', {
-          received_at: moment(new Date()),
-          channel: this.channel,
-          radio_id: raw_beep.channel,
-          tag_id: raw_beep.data.tag_id,
-          rssi: raw_beep.data.rssi,
-        });
-        break;
-      default:
-        this.emit('unknown', raw_beep);
-      }
+			this.emit('beep', {
+				received_at: moment(new Date()),
+				channel: this.channel,
+				tag_id: raw_beep.data.tag.id,
+        rssi: raw_beep.rssi,
+        error_bits: raw_beep.data.tag.error_bits
+			});
     });
     return port.pipe(parser);
   }
