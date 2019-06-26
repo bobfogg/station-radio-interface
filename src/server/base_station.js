@@ -1,8 +1,11 @@
 import { RadioReceiver } from './radio_receiver';
-const io = require('socket.io-emitter')({ host: '127.0.0.1', port: 6379 });
+import { ComputeModule } from './compute-module';
+import { SensorSocketServer } from './web-socket-server';
 const fs = require('fs');
 const heartbeats = require('heartbeats');
 const moment = require('moment');
+const http = require('http');
+const gpsd = require('node-gpsd');
 
 class BaseStation {
   constructor(opts) {
@@ -18,21 +21,124 @@ class BaseStation {
     this.log_filename = opts.log_filename;
     this.log('initializing radio receiver');
     this.beep_cache = [];
-    this.heartrate = opts.flush_data_secs * 1000;
-    this.heartbeat = heartbeats.createHeart(this.heartrate);
-    this.heartbeat.createEvent(1, (count, last) => {
+    this.flush_freq = opts.flush_data_secs;
+    this.server_checkin_freq = opts.server_checkin_freq;
+    this.sensor_socket_server = new SensorSocketServer({
+      port: 8001
+    });
+
+    this.heartbeat = heartbeats.createHeart(1000);
+    this.heartbeat.createEvent(this.flush_freq, (count, last) => {
       this.writeBeeps();
     })
+    this.heartbeat.createEvent(this.server_checkin_freq, (count, last) => {
+        this.serverCheckin();
+    });
     this.date_format = 'YYYY-MM-DD HH:mm:ss';
+    this.hostname = 'wildlife-debug.celltracktech.net';
+    this.port = 8014;
+    this.server_checkin_url = '/station/v1/checkin/';
     this.write_errors = opts.write_errors;
+    let info = this.getId();
+    this.imei = info.imei;
+    this.sim = info.sim;
+    this.beep_count_since_checkin = 0;
+    this.unique_tags = new Set();
+    this.compute_module = new ComputeModule();
+    this.gps_info = {
+      msg_type: 'gps',
+      time: null,
+      lat: null,
+      lon: null
+    };
+    this.gps_listener = new gpsd.Listener({
+      port: 2947,
+      hostname: 'localhost',
+      parse: true
+    });
+    this.gps_listener.connect(() => {
+      this.log('listening to GPSD');
+    });
+    this.gps_listener.on('TPV', (data) => {
+      Object.assign(this.gps_info, data);
+      this.sensor_socket_server.broadcast(JSON.stringify(this.gps_info));
+    });
+    this.gps_listener.on('SKY', (data) => {
+      Object.assign(this.gps_info, data);
+    })
+    this.gps_listener.watch();
   }
+
+  getId() {
+    let contents = fs.readFileSync('/etc/station-id');
+    return JSON.parse(contents);
+  }
+
 
   log(...msgs) {
     msgs.unshift(moment(new Date()).format(this.date_format));
-    fs.appendFile(this.log_filename, msgs.join(' ')+'\r\n', (err) => {
+    let line = msgs.join(' ') + '\r\n';
+    fs.appendFile(this.log_filename, line, (err) => {
       if (err) throw err;
     });
+    try {
+      this.sensor_socket_server.broadcast(JSON.stringify({'msg_type': 'log', 'data': line}))
+    } catch(err) {
+      console.error(err);
+    }
     console.log(...msgs);
+  }
+
+  serverCheckin() {
+    try {
+      this.log('checking in to server', this.hostname, this.port, this.server_checkin_url);
+      this.compute_module.getDiskUsagePercent().then((usage) => {
+        let postData = {
+          modem: {
+          imei: this.imei,
+          sim: this.sim
+          },
+        }
+        postData.module = this.compute_module.data();
+        postData.module.disk_available = usage.available;
+        postData.module.disk_total = usage.total;
+        postData.gps = {
+          lat: this.gps_info.lat,
+          lng: this.gps_info.lon,
+          time: this.gps_info.time,
+        };
+        postData.beep_count = this.beep_count_since_checkin;
+        postData.unique_tags = this.unique_tags.size;
+        const payload = JSON.stringify(postData);
+        const options = {
+          hostname: this.hostname,
+          port: this.port,
+          path: this.server_checkin_url,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': payload.length
+          }
+        };
+        const req = http.request(options, (res) => {
+          res.setEncoding('utf8');
+          if (res.statusCode == 204) {
+            this.log('valid server checkin; reset beep count')
+            this.beep_count_since_checkin = 0;
+            this.unique_tags.clear();
+          }
+
+        });
+        req.on('error', (e) => {
+          this.log(`checkin error: ${e.message}`)
+        })
+        req.write(payload);
+        req.end();
+      });
+
+    } catch(err) {
+      this.log('unable to checkin to server', err)
+    }
   }
 
   writeBeeps() {
@@ -58,7 +164,7 @@ class BaseStation {
       });
     }
 
-    this.log('wrote '+ n + ' beeps');
+    this.log(`flush beep cache: ${n} beeps`);
   }
 
   getRadioReport() {
@@ -78,9 +184,9 @@ class BaseStation {
         port_uri: port,
         channel: channel
       });
-      beep_reader.on('beep', (beep => {
-        this.handle_beep(beep);
-      }));
+      beep_reader.on('beep', (beep) => {
+        this.handle_beep(beep); 
+      });
       beep_reader.start();
       beep_reader.on('open', (info) => {
         this.log('opened radio on port', info.port_uri);
@@ -95,11 +201,15 @@ class BaseStation {
         }
       })
     });
+    this.serverCheckin();
   }
 
   handle_beep(beep) {
-    io.emit(beep);
     this.beep_cache.push(beep);
+    this.beep_count_since_checkin += 1;
+    beep.msg_type = 'beep';
+    this.sensor_socket_server.broadcast(JSON.stringify(beep));
+    this.unique_tags.add(beep.tag_id);
   }
 }
 

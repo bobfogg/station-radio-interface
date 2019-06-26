@@ -4,7 +4,7 @@
   "description": "read data from radio serial ports / write to disk",
   "main": "index.js",
   "scripts": {
-    "dev": "npm run babel && node lib/index.js",
+    "dev": "npm run babel && node --inspect lib/index.js",
     "start": "node lib/index.js",
     "build": "npm run babel",
     "babel": "babel src -d lib",
@@ -19,8 +19,10 @@
   "dependencies": {
     "heartbeats": "^5.0.1",
     "moment": "^2.24.0",
+    "node-gpsd": "^0.3.0",
     "serialport": "^7.1.4",
-    "socket.io-emitter": "^3.1.1"
+    "usb": "^1.6.0",
+    "ws": "^7.0.1"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",

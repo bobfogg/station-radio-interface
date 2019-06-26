@@ -11,7 +11,6 @@ class RadioReceiver extends EventEmitter {
     this.channel = opts.channel;
     this.reader;
     this.active = false;
-    console.log('initialized', this.port_uri, 'at', this.baud_rate, 'channel', this.channel);
   }
 
   log(...msgs) {
@@ -29,7 +28,6 @@ class RadioReceiver extends EventEmitter {
   }
 
   start() {
-    console.log('starting beep reader', this.port_uri);
     this.reader = this.buildSerialInterface();
   }
 
@@ -38,13 +36,13 @@ class RadioReceiver extends EventEmitter {
       baudRate: this.baud_rate
     });
     port.on('open', () => {
-      let msg = ['opened serial interface to lifetag', this.port_uri, this.baud_rate].join(' ');
+      let msg = ['opened serial interface to lifetag', this.port_uri, '@', this.baud_rate, 'bps'].join(' ');
       this.emit('log', msg);
       this.active = true;
       this.emit('open', this.data());
     });
     port.on('close', () => {
-      this.emit('log', 'this port was closed');
+      this.emit('log', 'port '+this.port_uri+ ' was closed');
       this.active = false;
       this.emit('close', this.data());
     });
