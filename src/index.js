@@ -7,7 +7,7 @@ const station = new BaseStation({
   data_filename: DataFile,
   log_filename: LogFile,
   write_errors: false,
-  flush_data_secs: 10,
-  server_checkin_freq: 20
+  flush_data_secs: 20,
+  server_checkin_freq: 30
 });
 station.start({});

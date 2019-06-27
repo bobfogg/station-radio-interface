@@ -10,11 +10,11 @@ const gpsd = require('node-gpsd');
 class BaseStation {
   constructor(opts) {
     this.radios = {
-      '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.2:1.0': 1,
-      '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.1:1.0': 2,
-      '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.2:1.0': 3,
-      '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.3:1.0': 4,
-      '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.4:1.0': 5
+      1: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.2:1.0',
+      2: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.1:1.0',
+      3: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.2:1.0',
+      4: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.3:1.0',
+      5: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.4:1.0'
     }
     this.active_radios = {};
     this.data_filename = opts.data_filename;
@@ -26,6 +26,49 @@ class BaseStation {
     this.sensor_socket_server = new SensorSocketServer({
       port: 8001
     });
+    this.sensor_socket_server.on('cmd', (cmd) => {
+      let line;
+      switch (cmd.cmd) {
+        case('about'):
+        let info = this.compute_module.data();
+        info.station_id = this.imei;
+        this.broadcast(JSON.stringify({
+          msg_type: 'about',
+          data: info
+        }));
+        break;
+        case('toggle_radio'):
+        let channel = cmd.data.channel;
+        if (channel in Object.keys(this.active_radios)) {
+          let radio = this.active_radios[channel];
+          switch (cmd.data.type) {
+            case('node'):
+            line = "mode:node_v2";
+            this.log('toggle node mode on radio', channel, cmd)
+            radio.write("mode:node_v2");
+            break;
+            case('tag'):
+            this.log('toggle lifetag mode on radio', channel)
+            radio.write("mode:tag_fsk");
+            break;
+            case('cornell'):
+            this.log('toggle cornell mode on radio', channel)
+            radio.write("mode:tag_ook");
+            break;
+            default:
+              this.log('invalid command type', cmd);
+              break;
+          }
+          break;
+        }
+        default:
+          this.log('unknown cmd', JSON.stringify(cmd));
+      }
+    });
+    this.sensor_socket_server.on('client_conn', (ip) => {
+      console.log(ip);
+      this.log(`client connected from IP: ${ip}`);
+    })
 
     this.heartbeat = heartbeats.createHeart(1000);
     this.heartbeat.createEvent(this.flush_freq, (count, last) => {
@@ -74,19 +117,22 @@ class BaseStation {
     return JSON.parse(contents);
   }
 
+  broadcast(msg) {
+    try {
+      this.sensor_socket_server.broadcast(msg);
+    } catch(err) {
+      console.error(err);
+    }
+  }
+
 
   log(...msgs) {
+    this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
     msgs.unshift(moment(new Date()).format(this.date_format));
     let line = msgs.join(' ') + '\r\n';
     fs.appendFile(this.log_filename, line, (err) => {
       if (err) throw err;
     });
-    try {
-      this.sensor_socket_server.broadcast(JSON.stringify({'msg_type': 'log', 'data': line}))
-    } catch(err) {
-      console.error(err);
-    }
-    console.log(...msgs);
   }
 
   serverCheckin() {
@@ -177,8 +223,8 @@ class BaseStation {
 
   start() {
     this.log('starting radio receivers');
-    Object.keys(this.radios).forEach((port) => {
-      let channel = this.radios[port];
+    Object.keys(this.radios).forEach((channel) => {
+      let port = this.radios[channel];
       let beep_reader = new RadioReceiver({
         baud_rate: 115200,
         port_uri: port,
@@ -187,6 +233,20 @@ class BaseStation {
       beep_reader.on('beep', (beep) => {
         this.handle_beep(beep); 
       });
+      beep_reader.on('fw', (fw) => {
+        this.log('fw query', fw);
+        fw.msg_type = 'fw';
+        this.broadcast(JSON.stringify(fw));
+      });
+      beep_reader.on('node-alive', (node_alive) => {
+        this.handle_node_alive(node_alive);
+      });
+      beep_reader.on('node-beep', (node_beep) => {
+        this.handle_node_beep(node_beep);
+      })
+      beep_reader.on('response', (res) => {
+        this.log(`Radio ${res.channel} response: ${res.res}`)
+      });
       beep_reader.start();
       beep_reader.on('open', (info) => {
         this.log('opened radio on port', info.port_uri);
@@ -194,14 +254,48 @@ class BaseStation {
       });
       beep_reader.on('log', (msg) => {
         this.log('Beep Reader '+beep_reader.port_uri+' Log: '+msg);
-      })
+      });
       beep_reader.on('close', (info) => {
+        console.log('closed beep reader serial interface', info.port_uri);
         if (info.port_uri in Object.keys(this.active_radios)) {
-          delete this.active_radios[info.port_uri];
         }
-      })
+      });
+      this.active_radios[channel] = beep_reader;
     });
     this.serverCheckin();
+  }
+
+  handle_node_alive(node_alive) {
+    let info = node_alive.data.node_alive;
+    let msg = `radio: ${node_alive.channel}; node ${info.id}; firmware: ${info.firmware}; battery: ${info.battery_mv/1000}V;`
+    this.log('node alive message:', msg);
+    node_alive.msg_type='node-alive';
+    this.sensor_socket_server.broadcast(JSON.stringify({
+      msg_type: 'node-alive',
+      channel: node_alive.channel,
+      node_id: info.id,
+      firmware: info.firmware,
+      battery: info.battery_mv/1000,
+      rssi: node_alive.rssi,
+    }));
+  }
+
+  handle_node_beep(node_beep) {
+    let now = moment(new Date()).utc();
+    let node_info = node_beep.data.node_beep;
+    let tag_info = node_beep.data.node_tag;
+    let then = now.subtract(node_info.offset_ms, 'ms');
+    this.sensor_socket_server.broadcast(JSON.stringify({
+      msg_type: 'beep',
+      received_at: now,
+      tag_at: then,
+      channel: node_beep.channel,
+      tag_id: tag_info.tag_id,
+      rssi: node_info.tag_rssi,
+      error_bits: 0,
+      node_id: node_info.id,
+      node_rssi: node_beep.rssi
+    }));
   }
 
   handle_beep(beep) {

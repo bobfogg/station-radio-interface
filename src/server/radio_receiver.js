@@ -9,13 +9,21 @@ class RadioReceiver extends EventEmitter {
     this.port_uri = opts.port_uri;
     this.baud_rate = opts.baud_rate;
     this.channel = opts.channel;
-    this.reader;
+    this.serialport;
+    this.parser;
     this.active = false;
   }
 
   log(...msgs) {
+    msgs.unshift('port '+this.port_uri + ' log:');
     msgs.unshift(moment(new Date()).format('YYYY-MM-DD HH:mm:ss'));
-    console.log(...msgs);
+    let msg = msgs.join(' ');
+    console.log('log', msg)
+    this.emit('log', msgs.join(' '));
+  }
+
+  write(data) {
+    this.serialport.write(data.trim()+'\r\n');
   }
 
   data() {
@@ -28,7 +36,7 @@ class RadioReceiver extends EventEmitter {
   }
 
   start() {
-    this.reader = this.buildSerialInterface();
+    this.parser= this.buildSerialInterface();
   }
 
   buildSerialInterface() {
@@ -37,30 +45,78 @@ class RadioReceiver extends EventEmitter {
     });
     port.on('open', () => {
       let msg = ['opened serial interface to lifetag', this.port_uri, '@', this.baud_rate, 'bps'].join(' ');
-      this.emit('log', msg);
+      this.log(msg);
       this.active = true;
       this.emit('open', this.data());
     });
     port.on('close', () => {
-      this.emit('log', 'port '+this.port_uri+ ' was closed');
+      this.log('closed');
       this.active = false;
       this.emit('close', this.data());
     });
     port.on('error', (err) => {
-      this.emit('log', 'serial error '+ err);
+      this.log('serial error', err);
       this.active = false;
       this.emit('close', this.data());
     });
+    this.serialport = port;
     const parser = new Readline();
     parser.on('data', (line) => {
-      const raw_beep = JSON.parse(line);
-			this.emit('beep', {
-				received_at: moment(new Date()),
-				channel: this.channel,
-				tag_id: raw_beep.data.tag.id,
-        rssi: raw_beep.rssi,
-        error_bits: raw_beep.data.tag.error_bits
-			});
+      let raw_beep;
+      try {
+        raw_beep = JSON.parse(line);
+        raw_beep.channel = this.channel;
+      } catch(err) {
+        // not a JSON document - assume this is an outgoing command
+        this.log('command issued', line);
+        return;
+      }
+      if (raw_beep.res) {
+        this.emit('response', raw_beep);
+        return;
+      }
+      if (raw_beep.firmware) {
+        raw_beep.channel = this.channel;
+        this.emit('fw', raw_beep);
+        return;
+      }
+      if (raw_beep.data.tag) {
+        this.emit('beep', {
+          received_at: moment(new Date()),
+          tag_at: moment(new Date()),
+          channel: this.channel,
+          tag_id: raw_beep.data.tag.id,
+          rssi: raw_beep.rssi,
+          error_bits: raw_beep.data.tag.error_bits,
+          node_id: null,
+          node_rssi: null
+        });
+        return;
+      }
+      if (raw_beep.data.node_alive) {
+        raw_beep.channel = this.channel;
+        console.log('emit node-alive', raw_beep);
+        this.emit('node-alive', raw_beep)
+        return;
+      }
+      if (raw_beep.data.node_beep) {
+        this.emit('node-beep', raw_beep);
+        /*
+        this.emit('beep', {
+          received_at: moment(new Date()),
+          channel: this.channel,
+          tag_id: raw_beep.data.tag.id,
+          rssi: raw_beep.rssi,
+          error_bits: raw_beep.data.tag.error_bits,
+          node_id: null,
+          node_rssi: null
+        });
+        */
+
+        return;
+      }
+      console.log('unknown line');
+      console.log(raw_beep);
     });
     return port.pipe(parser);
   }
