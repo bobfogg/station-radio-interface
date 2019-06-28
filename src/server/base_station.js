@@ -72,7 +72,9 @@ class BaseStation {
 
     this.heartbeat = heartbeats.createHeart(1000);
     this.heartbeat.createEvent(this.flush_freq, (count, last) => {
-      this.writeBeeps();
+      if (this.record_data) {
+        this.writeBeeps();
+      }
     })
     this.heartbeat.createEvent(this.server_checkin_freq, (count, last) => {
         this.serverCheckin();
@@ -81,6 +83,7 @@ class BaseStation {
     this.hostname = 'wildlife-debug.celltracktech.net';
     this.port = 8014;
     this.server_checkin_url = '/station/v1/checkin/';
+    this.record_data = true;
     this.write_errors = opts.write_errors;
     let info = this.getId();
     this.imei = info.imei;
@@ -272,6 +275,7 @@ class BaseStation {
     node_alive.msg_type='node-alive';
     this.sensor_socket_server.broadcast(JSON.stringify({
       msg_type: 'node-alive',
+      received_at: moment(new Date()).utc(),
       channel: node_alive.channel,
       node_id: info.id,
       firmware: info.firmware,
