@@ -5,7 +5,9 @@ const fs = require('fs');
 const heartbeats = require('heartbeats');
 const moment = require('moment');
 const http = require('http');
+const path = require('path');
 const gpsd = require('node-gpsd');
+const zlib = require('zlib');
 
 class BaseStation {
   constructor(opts) {
@@ -17,12 +19,21 @@ class BaseStation {
       5: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.4:1.0'
     }
     this.active_radios = {};
-    this.data_filename = opts.data_filename;
-    this.log_filename = opts.log_filename;
+    let info = this.getId();
+    this.base_log_dir = opts.base_log_dir
+    this.base_data_filename = `ctt-${info.imei}-data.csv`;
+    this.log_filename = 'sensor-station.log';
+    this.data_file_uri = path.join(this.base_log_dir, this.base_data_filename);
+    this.log_file_uri = path.join(this.base_log_dir, this.log_filename);
+
     this.log('initializing radio receiver');
     this.beep_cache = [];
     this.flush_freq = opts.flush_data_secs;
     this.server_checkin_freq = opts.server_checkin_freq;
+    this.rotation_freq = opts.rotation_freq;
+    this.imei = info.imei;
+    this.sim = info.sim;
+
     this.sensor_socket_server = new SensorSocketServer({
       port: 8001
     });
@@ -66,7 +77,6 @@ class BaseStation {
       }
     });
     this.sensor_socket_server.on('client_conn', (ip) => {
-      console.log(ip);
       this.log(`client connected from IP: ${ip}`);
     })
 
@@ -79,15 +89,16 @@ class BaseStation {
     this.heartbeat.createEvent(this.server_checkin_freq, (count, last) => {
         this.serverCheckin();
     });
+    this.heartbeat.createEvent(this.rotation_freq, (count, last) => {
+      this.log('rotating radio tag data file');
+      this.rotateDataFile();
+    })
     this.date_format = 'YYYY-MM-DD HH:mm:ss';
     this.hostname = 'wildlife-debug.celltracktech.net';
     this.port = 8014;
     this.server_checkin_url = '/station/v1/checkin/';
     this.record_data = true;
     this.write_errors = opts.write_errors;
-    let info = this.getId();
-    this.imei = info.imei;
-    this.sim = info.sim;
     this.beep_count_since_checkin = 0;
     this.unique_tags = new Set();
     this.compute_module = new ComputeModule();
@@ -115,25 +126,63 @@ class BaseStation {
     this.gps_listener.watch();
   }
 
+  createRotationDir() {
+    let dirname = path.join(this.base_log_dir, 'rotated');
+    if (!fs.existsSync(dirname)) {
+      this.log('creating directory', dirname);
+      fs.mkdirSync(dirname);
+    }
+  }
+
   getId() {
     let contents = fs.readFileSync('/etc/station-id');
     return JSON.parse(contents);
   }
 
   broadcast(msg) {
-    try {
+    if (this.sensor_socket_server) {
       this.sensor_socket_server.broadcast(msg);
-    } catch(err) {
-      console.error(err);
     }
   }
 
+  rotateDataFile() {
+    fs.stat(this.data_file_uri, (err, stats) => {
+      if (err) {
+        // file access error - doesn't exist / bad perms  nothing to rotate
+        this.log('no data file to rotate');
+        return;
+      }
+      let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
+      let newname = `${this.base_data_filename}.${now}`
+      this.createRotationDir();
+      this.rotated_uri = path.join(this.base_log_dir, 'rotated', newname);
+      fs.rename(this.data_file_uri, this.rotated_uri, (err) => {
+        if (err) {
+          this.log('error rotating data file', err);
+          throw(err);
+        }
+        const inp = fs.createReadStream(this.rotated_uri);
+        const out = fs.createWriteStream(this.rotated_uri+'.gz');
+        const gzip = zlib.createGzip();
+        inp.pipe(gzip).pipe(out);
+        out.on('close', () => {
+          this.log('finished write stream, deleting original file:', this.rotated_uri);
+          fs.unlink(this.rotated_uri, (err) => {
+            if (err) {
+              this.log('error deleting rotated file', err);
+            }
+          });
+        })
+      });
+      path.join(this.base_log_dir, 'rotated');
+    });
+}
 
   log(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
     msgs.unshift(moment(new Date()).format(this.date_format));
     let line = msgs.join(' ') + '\r\n';
-    fs.appendFile(this.log_filename, line, (err) => {
+    fs.appendFile(this.log_file_uri, line, (err) => {
       if (err) throw err;
     });
   }
@@ -190,30 +239,49 @@ class BaseStation {
     }
   }
 
-  writeBeeps() {
-    let vals = [], lines=[], beep;
-    let n = 0;
-    while (this.beep_cache.length > 0) {
-      n += 1;
-      beep = this.beep_cache.shift();
-      vals = [
-        beep.received_at.format(this.date_format),
-        beep.channel,
-        beep.tag_id,
-        beep.rssi,
-      ];
-      if (this.write_errors == true) {
-        vals.push(beep.error_bits);
-      }
-      lines.push(vals.join(','));
-    }
-    if (lines.length > 0) {
-      fs.appendFile(this.data_filename, lines.join('\r\n')+'\r\n', (err) => {
-        if (err) throw err;
-      });
-    }
 
-    this.log(`flush beep cache: ${n} beeps`);
+  writeBeeps() {
+    return new Promise((resolve, reject) => {
+      let vals = [], lines=[], beep;
+      let n = 0;
+      let header = [
+        'Time',
+        'RadioId',
+        'TagId',
+        'TagRSSI',
+        'NodeId'
+      ]
+      if (this.write_errors == true) {
+        header.push('ErrorBits');
+      }
+      while (this.beep_cache.length > 0) {
+        n += 1;
+        beep = this.beep_cache.shift();
+        vals = [
+          beep.received_at.format(this.date_format),
+          beep.channel,
+          beep.tag_id,
+          beep.tag_rssi,
+          beep.node_id
+        ];
+        if (this.write_errors == true) {
+          vals.push(beep.error_bits);
+        }
+        lines.push(vals.join(','));
+      }
+      if (lines.length > 0) {
+        if (!fs.existsSync(this.data_file_uri)) {
+          lines.unshift(header.join(','));
+        }
+        fs.appendFile(this.data_file_uri, lines.join('\r\n')+'\r\n', (err) => {
+          if (err) {
+            reject(err);
+          }
+          resolve()
+        });
+      }
+      this.log(`flush beep cache: ${n} beeps`);
+    })
   }
 
   getRadioReport() {
@@ -259,7 +327,6 @@ class BaseStation {
         this.log('Beep Reader '+beep_reader.port_uri+' Log: '+msg);
       });
       beep_reader.on('close', (info) => {
-        console.log('closed beep reader serial interface', info.port_uri);
         if (info.port_uri in Object.keys(this.active_radios)) {
         }
       });
@@ -289,6 +356,14 @@ class BaseStation {
     let node_info = node_beep.data.node_beep;
     let tag_info = node_beep.data.node_tag;
     let then = now.subtract(node_info.offset_ms, 'ms');
+    this.beep_cache.push({
+      received_at: then,
+      channel: node_beep.channel,
+      tag_id: tag_info.tag_id,
+      tag_rssi: node_info.tag_rssi,
+      node_id: node_info.id,
+      error_bits: 0
+    })
     this.sensor_socket_server.broadcast(JSON.stringify({
       msg_type: 'beep',
       received_at: now,
@@ -303,7 +378,14 @@ class BaseStation {
   }
 
   handle_beep(beep) {
-    this.beep_cache.push(beep);
+    this.beep_cache.push({
+      received_at: beep.received_at,
+      channel: beep.channel,
+      tag_id: beep.tag_id,
+      tag_rssi: beep.rssi,
+      node_id: beep.node_id,
+      error_bits: beep.error_bits
+    });
     this.beep_count_since_checkin += 1;
     beep.msg_type = 'beep';
     this.sensor_socket_server.broadcast(JSON.stringify(beep));

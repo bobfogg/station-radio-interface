@@ -4,7 +4,7 @@
   "description": "read data from radio serial ports / write to disk",
   "main": "index.js",
   "scripts": {
-    "dev": "npm run babel && node --inspect lib/index.js",
+    "dev": "npm run babel && node lib/index.js",
     "start": "node lib/index.js",
     "build": "npm run babel",
     "babel": "babel src -d lib",

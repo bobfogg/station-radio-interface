@@ -1,14 +1,11 @@
 import { BaseStation } from './server/base_station';
 
-const DataFile = '/data/ctt.log';
-const LogFile = '/data/sensor-station.log';
-
 const station = new BaseStation({
-  data_filename: DataFile,
-  log_filename: LogFile,
+  base_log_dir: '/data',
   record_data: true,
   write_errors: false,
   flush_data_secs: 20,
-  server_checkin_freq: 30
+  server_checkin_freq: 30,
+  rotation_freq: 60 * 5,
 });
 station.start({});

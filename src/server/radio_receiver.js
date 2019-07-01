@@ -18,7 +18,6 @@ class RadioReceiver extends EventEmitter {
     msgs.unshift('port '+this.port_uri + ' log:');
     msgs.unshift(moment(new Date()).format('YYYY-MM-DD HH:mm:ss'));
     let msg = msgs.join(' ');
-    console.log('log', msg)
     this.emit('log', msgs.join(' '));
   }
 
@@ -95,24 +94,11 @@ class RadioReceiver extends EventEmitter {
       }
       if (raw_beep.data.node_alive) {
         raw_beep.channel = this.channel;
-        console.log('emit node-alive', raw_beep);
         this.emit('node-alive', raw_beep)
         return;
       }
       if (raw_beep.data.node_beep) {
         this.emit('node-beep', raw_beep);
-        /*
-        this.emit('beep', {
-          received_at: moment(new Date()),
-          channel: this.channel,
-          tag_id: raw_beep.data.tag.id,
-          rssi: raw_beep.rssi,
-          error_bits: raw_beep.data.tag.error_bits,
-          node_id: null,
-          node_rssi: null
-        });
-        */
-
         return;
       }
       console.log('unknown line');
