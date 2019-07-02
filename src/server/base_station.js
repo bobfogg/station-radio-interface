@@ -28,11 +28,15 @@ class BaseStation {
     this.log('initializing base station');
 
     let info = this.getId();
-    this.base_data_filename = `ctt-${info.imei}-data.csv`;
+    this.base_data_filename = `CTT-${info.imei}-data.csv`;
     this.data_file_uri = path.join(this.base_log_dir, this.base_data_filename);
+
+    this.node_data_filename = `CTT-${info.imei}-node-data.csv`;
+    this.node_file_uri = path.join(this.base_log_dir, this.node_data_filename);
 
     this.update_screen_freq = opts.update_screen_freq;
     this.beep_cache = [];
+    this.node_cache = [];
     this.flush_freq = opts.flush_data_secs;
     this.server_checkin_freq = opts.server_checkin_freq;
     this.rotation_freq = opts.rotation_freq;
@@ -77,6 +81,18 @@ class BaseStation {
           data: info
         }));
         break;
+        case('save_radio'):
+        Object.keys(this.active_radios).forEach((channel) => {
+          this.log(`saving config for radio ${channel}`);
+          let radio = this.active_radios[channel];
+          try {
+            radio.write("save");
+          } catch(err) {
+            console.log('serror saving radio');
+            console.error(err);
+          }
+        });
+        break;
         case('toggle_radio'):
         let channel = cmd.data.channel;
         if (channel in Object.keys(this.active_radios)) {
@@ -84,7 +100,7 @@ class BaseStation {
           switch (cmd.data.type) {
             case('node'):
             line = "mode:node_v2";
-            this.log('toggle node mode on radio', channel, cmd)
+            this.log('toggle node mode on radio', channel, JSON.stringify(cmd));
             radio.write("mode:node_v2");
             break;
             case('tag'):
@@ -113,6 +129,7 @@ class BaseStation {
     this.heartbeat.createEvent(this.flush_freq, (count, last) => {
       if (this.record_data) {
         this.writeBeeps();
+        this.writeNodes();
       }
     })
     this.heartbeat.createEvent(this.server_checkin_freq, (count, last) => {
@@ -120,7 +137,8 @@ class BaseStation {
     });
     this.heartbeat.createEvent(this.rotation_freq, (count, last) => {
       this.log('rotating radio tag data file');
-      this.rotateDataFile();
+      this.rotateDataFile(this.data_file_uri, this.base_data_filename);
+      this.rotateDataFile(this.node_file_uri, this.node_data_filename);
     });
     this.heartbeat.createEvent(this.update_screen_freq, (count, last) => {
       this.updateDisplay(false);
@@ -129,6 +147,7 @@ class BaseStation {
       this.uploadFiles();
     });
     this.uploadFiles();
+    this.rotateDataFile(this.node_file_uri, this.node_data_filename);
     this.gps_listener = new gpsd.Listener({
       port: 2947,
       hostname: 'localhost',
@@ -172,7 +191,7 @@ class BaseStation {
     this.log(`updating ${view} display`);
     const cmd = spawn('python', args);
     cmd.on('close', (code) => {
-      this.log('finished updating screen', code);
+      this.log('finished updating screen');
       this.updating_screen = false;
     });
     cmd.on('error', (err) => {
@@ -260,19 +279,19 @@ class BaseStation {
     });
   }
 
-  rotateDataFile() {
-    fs.stat(this.data_file_uri, (err, stats) => {
+  rotateDataFile(fileuri, new_basename) {
+    fs.stat(fileuri, (err, stats) => {
       if (err) {
         // file access error - doesn't exist / bad perms  nothing to rotate
         this.log('no data file to rotate');
         return;
       }
       let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
-      let newname = `${this.base_data_filename}.${now}`
+      let newname = `${new_basename}.${now}`
       // ensure rotation directory exists
       this.createDir(path.join(this.base_log_dir, 'rotated')); 
       this.rotated_uri = path.join(this.base_log_dir, 'rotated', newname);
-      fs.rename(this.data_file_uri, this.rotated_uri, (err) => {
+      fs.rename(fileuri, this.rotated_uri, (err) => {
         if (err) {
           this.log('error rotating data file', err);
           throw(err);
@@ -357,6 +376,44 @@ class BaseStation {
     }
   }
 
+  writeNodes() {
+    return new Promise((resolve, reject) => {
+      let vals = [], lines=[], node_alive, info;
+      let header = [
+        'Time',
+        'RadioId',
+        'NodeId',
+        'NodeRSSI',
+        'Battery',
+        'Celsius',
+      ];
+      let n = 0;
+      while (this.node_cache.length > 0) {
+        n += 1;
+        node_alive = this.node_cache.shift();
+        vals = [
+          node_alive.received_at.format(this.date_format),
+          node_alive.channel,
+          node_alive.node_id,
+          node_alive.rssi,
+          node_alive.battery,
+          node_alive.celsius
+        ];
+        lines.push(vals.join(','));
+        if (lines.length > 0) {
+          if (!fs.existsSync(this.node_file_uri)) {
+            lines.unshift(header.join(','));
+          }
+          fs.appendFile(this.node_file_uri, lines.join('\r\n')+'\r\n', (err) =>{
+            if (err) {
+              reject(err);
+            }
+          });
+        }
+      }
+      this.log(`flush node alive cache: ${n} messages`);
+    });
+  }
 
   writeBeeps() {
     return new Promise((resolve, reject) => {
@@ -432,7 +489,7 @@ class BaseStation {
       });
       beep_reader.on('node-beep', (node_beep) => {
         this.handle_node_beep(node_beep);
-      })
+      });
       beep_reader.on('response', (res) => {
         this.log(`Radio ${res.channel} response: ${res.res}`)
       });
@@ -456,8 +513,17 @@ class BaseStation {
   handle_node_alive(node_alive) {
     let info = node_alive.data.node_alive;
     let msg = `radio: ${node_alive.channel}; node ${info.id}; firmware: ${info.firmware}; battery: ${info.battery_mv/1000}V;`
-    this.log('node alive message:', msg);
     node_alive.msg_type='node-alive';
+    this.node_cache.push({
+      received_at: node_alive.received_at,
+      channel: node_alive.channel,
+      node_id: info.id,
+      firmware: info.firmware,
+      battery: info.battery_mv / 1000,
+      celsius: info.celsius,
+      rssi: node_alive.rssi,
+      avg_cca: info.avg_cca
+    });
     this.sensor_socket_server.broadcast(JSON.stringify({
       msg_type: 'node-alive',
       received_at: moment(new Date()).utc(),

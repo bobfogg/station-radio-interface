@@ -68,7 +68,7 @@ class Uploader extends EventEmitter {
   uploadCttFile(filename) {
     let stats = fs.statSync(filename);
     let mtime = moment(stats.mtime);
-    let key = ['tag-data', this.imei, mtime.format('YYYY-MM-DD'), path.basename(filename)].join('/');
+    let key = ['tag-data', this.id, mtime.format('YYYY-MM-DD'), path.basename(filename)].join('/');
     return new AWS.S3({apiVersion: this.api_version}).putObject({
       Bucket: this.bucket,
       Key: key,

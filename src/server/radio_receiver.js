@@ -62,9 +62,11 @@ class RadioReceiver extends EventEmitter {
     const parser = new Readline();
     parser.on('data', (line) => {
       let raw_beep;
+      let now = moment(new Date()).utc();
       try {
         raw_beep = JSON.parse(line);
         raw_beep.channel = this.channel;
+        raw_beep.received_at = now;
       } catch(err) {
         // not a JSON document - assume this is an outgoing command
         this.log('command issued', line);
@@ -81,8 +83,8 @@ class RadioReceiver extends EventEmitter {
       }
       if (raw_beep.data.tag) {
         this.emit('beep', {
-          received_at: moment(new Date()),
-          tag_at: moment(new Date()),
+          received_at: now,
+          tag_at: now,
           channel: this.channel,
           tag_id: raw_beep.data.tag.id,
           rssi: raw_beep.rssi,
@@ -93,7 +95,6 @@ class RadioReceiver extends EventEmitter {
         return;
       }
       if (raw_beep.data.node_alive) {
-        raw_beep.channel = this.channel;
         this.emit('node-alive', raw_beep)
         return;
       }
