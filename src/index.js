@@ -6,6 +6,8 @@ const station = new BaseStation({
   write_errors: false,
   flush_data_secs: 20,
   server_checkin_freq: 30,
-  rotation_freq: 60 * 5,
+  update_screen_freq: 60,
+  rotation_freq: 60 * 30, // 30 minute rotation
+  upload_freq: 60 * 60, // hourly
 });
 station.start({});

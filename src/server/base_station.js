@@ -1,6 +1,7 @@
 import { RadioReceiver } from './radio_receiver';
 import { ComputeModule } from './compute-module';
 import { SensorSocketServer } from './web-socket-server';
+import { Uploader } from './uploader';
 const fs = require('fs');
 const heartbeats = require('heartbeats');
 const moment = require('moment');
@@ -8,6 +9,8 @@ const http = require('http');
 const path = require('path');
 const gpsd = require('node-gpsd');
 const zlib = require('zlib');
+const { spawn }  = require('child_process');
+const glob = require('glob');
 
 class BaseStation {
   constructor(opts) {
@@ -19,20 +22,46 @@ class BaseStation {
       5: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.4:1.0'
     }
     this.active_radios = {};
-    let info = this.getId();
     this.base_log_dir = opts.base_log_dir
-    this.base_data_filename = `ctt-${info.imei}-data.csv`;
     this.log_filename = 'sensor-station.log';
-    this.data_file_uri = path.join(this.base_log_dir, this.base_data_filename);
     this.log_file_uri = path.join(this.base_log_dir, this.log_filename);
+    this.log('initializing base station');
 
-    this.log('initializing radio receiver');
+    let info = this.getId();
+    this.base_data_filename = `ctt-${info.imei}-data.csv`;
+    this.data_file_uri = path.join(this.base_log_dir, this.base_data_filename);
+
+    this.update_screen_freq = opts.update_screen_freq;
     this.beep_cache = [];
     this.flush_freq = opts.flush_data_secs;
     this.server_checkin_freq = opts.server_checkin_freq;
     this.rotation_freq = opts.rotation_freq;
     this.imei = info.imei;
     this.sim = info.sim;
+    this.updating_screen = false;
+    this.uploading = false;
+    this.uploader = new Uploader(this.imei);
+    this.current_upload_file;
+    this.date_format = 'YYYY-MM-DD HH:mm:ss';
+    this.hostname = 'wildlife-debug.celltracktech.net';
+    this.port = 8014;
+    this.server_checkin_url = '/station/v1/checkin/';
+    this.record_data = true;
+    this.write_errors = opts.write_errors;
+    this.beep_count_since_checkin = 0;
+    this.beep_count_total = 0;
+    this.nodes = new Set();
+    this.total_nodes = new Set();
+    this.unique_tags = new Set();
+    this.compute_module = new ComputeModule();
+
+    this.gps_info = {
+      msg_type: 'gps',
+      time: null,
+      lat: null,
+      lon: null
+    };
+
 
     this.sensor_socket_server = new SensorSocketServer({
       port: 8001
@@ -92,22 +121,14 @@ class BaseStation {
     this.heartbeat.createEvent(this.rotation_freq, (count, last) => {
       this.log('rotating radio tag data file');
       this.rotateDataFile();
-    })
-    this.date_format = 'YYYY-MM-DD HH:mm:ss';
-    this.hostname = 'wildlife-debug.celltracktech.net';
-    this.port = 8014;
-    this.server_checkin_url = '/station/v1/checkin/';
-    this.record_data = true;
-    this.write_errors = opts.write_errors;
-    this.beep_count_since_checkin = 0;
-    this.unique_tags = new Set();
-    this.compute_module = new ComputeModule();
-    this.gps_info = {
-      msg_type: 'gps',
-      time: null,
-      lat: null,
-      lon: null
-    };
+    });
+    this.heartbeat.createEvent(this.update_screen_freq, (count, last) => {
+      this.updateDisplay(false);
+    });
+    this.heartbeat.createEvent(this.upload_freq, (count, last) => {
+      this.uploadFiles();
+    });
+    this.uploadFiles();
     this.gps_listener = new gpsd.Listener({
       port: 2947,
       hostname: 'localhost',
@@ -117,6 +138,7 @@ class BaseStation {
       this.log('listening to GPSD');
     });
     this.gps_listener.on('TPV', (data) => {
+      data.system_time = new Date();
       Object.assign(this.gps_info, data);
       this.sensor_socket_server.broadcast(JSON.stringify(this.gps_info));
     });
@@ -124,10 +146,43 @@ class BaseStation {
       Object.assign(this.gps_info, data);
     })
     this.gps_listener.watch();
+    this.updateDisplay(true); // turn on welcome screen
   }
 
-  createRotationDir() {
-    let dirname = path.join(this.base_log_dir, 'rotated');
+  updateDisplay(welcome=false) {
+    if (this.updating_screen) {
+      this.log('screen update not finished - skipping update');
+      return;
+    }
+    this.updating_screen = true;
+    let view  = welcome ? 'welcome' : 'main';
+    let args =[
+      '/home/pi/ctt/caseys-software/update_screen.py',
+      '--beeps',
+      this.beep_count_total,
+      '--nodes',
+      this.total_nodes.size,
+      '--gps',
+      3,
+      '--signal',
+      0,
+      '--view',
+      view
+    ];
+    this.log(`updating ${view} display`);
+    const cmd = spawn('python', args);
+    cmd.on('close', (code) => {
+      this.log('finished updating screen', code);
+      this.updating_screen = false;
+    });
+    cmd.on('error', (err) => {
+      console.log('error running command...');
+      console.log(line);
+      console.error(err);
+    })
+  }
+
+  createDir(dirname) {
     if (!fs.existsSync(dirname)) {
       this.log('creating directory', dirname);
       fs.mkdirSync(dirname);
@@ -145,6 +200,66 @@ class BaseStation {
     }
   }
 
+  uploadFiles() {
+    if (this.uploading) {
+      this.log('data upload still in progress, ignoring upload job');
+      return;
+    }
+    this.uploading = true;
+    this.uploadNext();
+  }
+
+  uploadNext() {
+    let dirname = path.join(this.base_log_dir, 'uploaded');
+    this.createDir(dirname);
+    this.createDir(path.join(this.base_log_dir, 'uploaded', 'ctt'));
+    this.createDir(path.join(this.base_log_dir, 'uploaded', 'sg'));
+    this.uploader.getFilesToUpload().then((res) => {
+      if (res.ctt.length > 0) {
+        this.current_upload_file = res.ctt.shift();
+        this.log('begin file upload', this.current_upload_file);
+        this.uploader.uploadCttFile(this.current_upload_file).then((data) => {
+          let basename = path.basename(this.current_upload_file);
+          let dest = path.join(dirname, 'ctt', basename);
+          fs.renameSync(this.current_upload_file, dest);
+          this.log('finished file upload', this.current_upload_file);
+          this.uploadNext();
+        }).catch((err) => {
+          // unable to upload file
+          this.log('error trying to upload file', this.current_upload_file);
+          console.error(err);
+          this.current_upload_file = null;
+          this.uploading = false;
+          return;
+        })
+
+      } else if (res.sg.length > 0) {
+        this.current_upload_file = res.sg.shift();
+        this.log('begin sg file upload', this.current_upload_file);
+        this.uploader.uploadSgFile(this.current_upload_file).then((data) => {
+          let basename = path.basename(this.current_upload_file);
+          let dest = path.join(dirname, 'sg', basename);
+          fs.renameSync(this.current_upload_file, dest);
+          this.log('finished file upload', this.current_upload_file);
+          this.uploadNext();
+        }).catch((err) => {
+          // unable to upload file
+          this.log('error trying to upload file', this.current_upload_file);
+          console.error(err);
+          this.current_upload_file = null;
+          this.uploading = false;
+          return;
+        })
+
+      } else {
+        // nothing to upload
+        this.uploading = false;
+        this.log('upload job finished');
+        return;
+      }
+    });
+  }
+
   rotateDataFile() {
     fs.stat(this.data_file_uri, (err, stats) => {
       if (err) {
@@ -154,7 +269,8 @@ class BaseStation {
       }
       let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
       let newname = `${this.base_data_filename}.${now}`
-      this.createRotationDir();
+      // ensure rotation directory exists
+      this.createDir(path.join(this.base_log_dir, 'rotated')); 
       this.rotated_uri = path.join(this.base_log_dir, 'rotated', newname);
       fs.rename(this.data_file_uri, this.rotated_uri, (err) => {
         if (err) {
@@ -176,7 +292,7 @@ class BaseStation {
       });
       path.join(this.base_log_dir, 'rotated');
     });
-}
+  }
 
   log(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
@@ -207,6 +323,7 @@ class BaseStation {
         };
         postData.beep_count = this.beep_count_since_checkin;
         postData.unique_tags = this.unique_tags.size;
+        postData.node_count = this.nodes.size;
         const payload = JSON.stringify(postData);
         const options = {
           hostname: this.hostname,
@@ -224,6 +341,7 @@ class BaseStation {
             this.log('valid server checkin; reset beep count')
             this.beep_count_since_checkin = 0;
             this.unique_tags.clear();
+            this.nodes.clear();
           }
 
         });
@@ -387,9 +505,12 @@ class BaseStation {
       error_bits: beep.error_bits
     });
     this.beep_count_since_checkin += 1;
+    this.beep_count_total += 1;
     beep.msg_type = 'beep';
     this.sensor_socket_server.broadcast(JSON.stringify(beep));
     this.unique_tags.add(beep.tag_id);
+    this.nodes.add(beep.node_id);
+    this.total_nodes.add(beep.node_id);
   }
 }
 

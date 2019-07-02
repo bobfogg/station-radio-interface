@@ -1,5 +1,3 @@
-import { resolve } from 'path';
-
 const fs = require('fs');
 const { spawn } = require('child_process');
 const os = require('os');

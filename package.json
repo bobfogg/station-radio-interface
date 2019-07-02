@@ -17,6 +17,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "aws-sdk": "^2.486.0",
+    "glob": "^7.1.4",
     "heartbeats": "^5.0.1",
     "moment": "^2.24.0",
     "node-gpsd": "^0.3.0",
