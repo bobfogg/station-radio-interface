@@ -44,11 +44,12 @@ class BaseStation {
     this.sim = info.sim;
     this.updating_screen = false;
     this.uploading = false;
+    this.upload_freq = opts.upload_freq;
     this.uploader = new Uploader(this.imei);
     this.current_upload_file;
     this.date_format = 'YYYY-MM-DD HH:mm:ss';
-    this.hostname = 'wildlife-debug.celltracktech.net';
-    this.port = 8014;
+    this.hostname = 'account.celltracktech.com';
+    this.port = 80;
     this.server_checkin_url = '/station/v1/checkin/';
     this.record_data = true;
     this.write_errors = opts.write_errors;
@@ -137,8 +138,12 @@ class BaseStation {
     });
     this.heartbeat.createEvent(this.rotation_freq, (count, last) => {
       this.log('rotating radio tag data file');
-      this.rotateDataFile(this.data_file_uri, this.base_data_filename);
-      this.rotateDataFile(this.node_file_uri, this.node_data_filename);
+      this.rotateDataFile(this.data_file_uri, this.base_data_filename).then((res) => {
+        this.rotateDataFile(this.node_file_uri, this.node_data_filename);
+      }).catch((err) => {
+        this.log('error rotating data file')
+        console.error(err);
+      });
     });
     this.heartbeat.createEvent(this.update_screen_freq, (count, last) => {
       this.updateDisplay(false);
@@ -146,8 +151,6 @@ class BaseStation {
     this.heartbeat.createEvent(this.upload_freq, (count, last) => {
       this.uploadFiles();
     });
-    this.uploadFiles();
-    this.rotateDataFile(this.node_file_uri, this.node_data_filename);
     this.gps_listener = new gpsd.Listener({
       port: 2947,
       hostname: 'localhost',
@@ -280,37 +283,43 @@ class BaseStation {
   }
 
   rotateDataFile(fileuri, new_basename) {
-    fs.stat(fileuri, (err, stats) => {
-      if (err) {
-        // file access error - doesn't exist / bad perms  nothing to rotate
-        this.log('no data file to rotate');
-        return;
-      }
-      let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
-      let newname = `${new_basename}.${now}`
-      // ensure rotation directory exists
-      this.createDir(path.join(this.base_log_dir, 'rotated')); 
-      this.rotated_uri = path.join(this.base_log_dir, 'rotated', newname);
-      fs.rename(fileuri, this.rotated_uri, (err) => {
+    return new Promise((resolve, reject) => {
+      fs.stat(fileuri, (err, stats) => {
         if (err) {
-          this.log('error rotating data file', err);
-          throw(err);
+          // file access error - doesn't exist / bad perms  nothing to rotate
+          this.log('no data file to rotate');
+          return;
         }
-        const inp = fs.createReadStream(this.rotated_uri);
-        const out = fs.createWriteStream(this.rotated_uri+'.gz');
-        const gzip = zlib.createGzip();
-        inp.pipe(gzip).pipe(out);
-        out.on('close', () => {
-          this.log('finished write stream, deleting original file:', this.rotated_uri);
-          fs.unlink(this.rotated_uri, (err) => {
-            if (err) {
-              this.log('error deleting rotated file', err);
-            }
+        let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
+        let newname = `${new_basename}.${now}`
+        // ensure rotation directory exists
+        this.createDir(path.join(this.base_log_dir, 'rotated')); 
+        this.rotated_uri = path.join(this.base_log_dir, 'rotated', newname);
+        fs.rename(fileuri, this.rotated_uri, (err) => {
+          if (err) {
+            this.log('error rotating data file', err);
+            reject(err);
+          }
+          const inp = fs.createReadStream(this.rotated_uri);
+          const out = fs.createWriteStream(this.rotated_uri+'.gz');
+          const gzip = zlib.createGzip();
+          inp.pipe(gzip).pipe(out);
+          out.on('close', () => {
+            this.log('finished write stream, deleting original file:', this.rotated_uri);
+            fs.unlink(this.rotated_uri, (err) => {
+              if (err) {
+                this.log('error deleting rotated file', err);
+                reject(err);
+              }
+              resolve(true);
+            });
           });
-        })
+          out.on('error', (err) => {
+            reject(err);
+          });
+        });
       });
-      path.join(this.base_log_dir, 'rotated');
-    });
+    })
   }
 
   log(...msgs) {
@@ -324,7 +333,7 @@ class BaseStation {
 
   serverCheckin() {
     try {
-      this.log('checking in to server', this.hostname, this.port, this.server_checkin_url);
+      this.log('checking in to server');
       this.compute_module.getDiskUsagePercent().then((usage) => {
         let postData = {
           modem: {
