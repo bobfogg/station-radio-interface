@@ -25,7 +25,7 @@ class BaseStation {
     this.base_log_dir = opts.base_log_dir
     this.log_filename = 'sensor-station.log';
     this.log_file_uri = path.join(this.base_log_dir, this.log_filename);
-    this.log('initializing base station');
+    this.record('initializing base station');
 
     let info = this.getId();
     this.base_data_filename = `CTT-${info.imei}-data.csv`;
@@ -84,7 +84,7 @@ class BaseStation {
         break;
         case('save_radio'):
         Object.keys(this.active_radios).forEach((channel) => {
-          this.log(`saving config for radio ${channel}`);
+          this.record(`saving config for radio ${channel}`);
           let radio = this.active_radios[channel];
           try {
             radio.write("save");
@@ -101,25 +101,25 @@ class BaseStation {
           switch (cmd.data.type) {
             case('node'):
             line = "mode:node_v2";
-            this.log('toggle node mode on radio', channel, JSON.stringify(cmd));
+            this.record('toggle node mode on radio', channel, JSON.stringify(cmd));
             radio.write("mode:node_v2");
             break;
             case('tag'):
-            this.log('toggle lifetag mode on radio', channel)
+            this.record('toggle lifetag mode on radio', channel)
             radio.write("mode:tag_fsk");
             break;
             case('cornell'):
-            this.log('toggle cornell mode on radio', channel)
+            this.record('toggle cornell mode on radio', channel)
             radio.write("mode:tag_ook");
             break;
             default:
-              this.log('invalid command type', cmd);
+              this.record('invalid command type', cmd);
               break;
           }
           break;
         }
         default:
-          this.log('unknown cmd', JSON.stringify(cmd));
+          this.record('unknown cmd', JSON.stringify(cmd));
       }
     });
     this.sensor_socket_server.on('client_conn', (ip) => {
@@ -137,11 +137,11 @@ class BaseStation {
         this.serverCheckin();
     });
     this.heartbeat.createEvent(this.rotation_freq, (count, last) => {
-      this.log('rotating radio tag data file');
+      this.record('rotating radio tag data file');
       this.rotateDataFile(this.data_file_uri, this.base_data_filename).then((res) => {
         this.rotateDataFile(this.node_file_uri, this.node_data_filename);
       }).catch((err) => {
-        this.log('error rotating data file')
+        this.record('error rotating data file')
         console.error(err);
       });
     });
@@ -157,7 +157,7 @@ class BaseStation {
       parse: true
     });
     this.gps_listener.connect(() => {
-      this.log('listening to GPSD');
+      this.record('listening to GPSD');
     });
     this.gps_listener.on('TPV', (data) => {
       data.system_time = new Date();
@@ -192,11 +192,19 @@ class BaseStation {
       view
     ];
     this.log(`updating ${view} display`);
-    const cmd = spawn('python', args);
+    const cmd = spawn('python', args, {
+			env: {
+				PYTHONPATH: '$PYTHONPATH:/home/pi/.local/lib/python2.7/site-packages'
+			}
+		});
     cmd.on('close', (code) => {
       this.log('finished updating screen');
       this.updating_screen = false;
     });
+		cmd.stderr.on('data', (data) =>{
+			console.log('display error');
+			console.log(data.toString());
+		});
     cmd.on('error', (err) => {
       console.log('error running command...');
       console.log(line);
@@ -206,7 +214,7 @@ class BaseStation {
 
   createDir(dirname) {
     if (!fs.existsSync(dirname)) {
-      this.log('creating directory', dirname);
+      this.record('creating directory', dirname);
       fs.mkdirSync(dirname);
     }
   }
@@ -224,7 +232,7 @@ class BaseStation {
 
   uploadFiles() {
     if (this.uploading) {
-      this.log('data upload still in progress, ignoring upload job');
+      this.record('data upload still in progress, ignoring upload job');
       return;
     }
     this.uploading = true;
@@ -239,16 +247,16 @@ class BaseStation {
     this.uploader.getFilesToUpload().then((res) => {
       if (res.ctt.length > 0) {
         this.current_upload_file = res.ctt.shift();
-        this.log('begin file upload', this.current_upload_file);
+        this.record('begin file upload', this.current_upload_file);
         this.uploader.uploadCttFile(this.current_upload_file).then((data) => {
           let basename = path.basename(this.current_upload_file);
           let dest = path.join(dirname, 'ctt', basename);
           fs.renameSync(this.current_upload_file, dest);
-          this.log('finished file upload', this.current_upload_file);
+          this.record('finished file upload', this.current_upload_file);
           this.uploadNext();
         }).catch((err) => {
           // unable to upload file
-          this.log('error trying to upload file', this.current_upload_file);
+          this.record('error trying to upload file', this.current_upload_file);
           console.error(err);
           this.current_upload_file = null;
           this.uploading = false;
@@ -257,16 +265,16 @@ class BaseStation {
 
       } else if (res.sg.length > 0) {
         this.current_upload_file = res.sg.shift();
-        this.log('begin sg file upload', this.current_upload_file);
+        this.record('begin sg file upload', this.current_upload_file);
         this.uploader.uploadSgFile(this.current_upload_file).then((data) => {
           let basename = path.basename(this.current_upload_file);
           let dest = path.join(dirname, 'sg', basename);
           fs.renameSync(this.current_upload_file, dest);
-          this.log('finished file upload', this.current_upload_file);
+          this.record('finished file upload', this.current_upload_file);
           this.uploadNext();
         }).catch((err) => {
           // unable to upload file
-          this.log('error trying to upload file', this.current_upload_file);
+          this.record('error trying to upload file', this.current_upload_file);
           console.error(err);
           this.current_upload_file = null;
           this.uploading = false;
@@ -276,7 +284,7 @@ class BaseStation {
       } else {
         // nothing to upload
         this.uploading = false;
-        this.log('upload job finished');
+        this.record('upload job finished');
         return;
       }
     });
@@ -287,7 +295,7 @@ class BaseStation {
       fs.stat(fileuri, (err, stats) => {
         if (err) {
           // file access error - doesn't exist / bad perms  nothing to rotate
-          this.log('no data file to rotate');
+          this.record('no data file to rotate');
           return;
         }
         let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
@@ -297,7 +305,7 @@ class BaseStation {
         this.rotated_uri = path.join(this.base_log_dir, 'rotated', newname);
         fs.rename(fileuri, this.rotated_uri, (err) => {
           if (err) {
-            this.log('error rotating data file', err);
+            this.record('error rotating data file', err);
             reject(err);
           }
           const inp = fs.createReadStream(this.rotated_uri);
@@ -305,10 +313,10 @@ class BaseStation {
           const gzip = zlib.createGzip();
           inp.pipe(gzip).pipe(out);
           out.on('close', () => {
-            this.log('finished write stream, deleting original file:', this.rotated_uri);
+            this.record('finished write stream, deleting original file:', this.rotated_uri);
             fs.unlink(this.rotated_uri, (err) => {
               if (err) {
-                this.log('error deleting rotated file', err);
+                this.record('error deleting rotated file', err);
                 reject(err);
               }
               resolve(true);
@@ -322,7 +330,7 @@ class BaseStation {
     })
   }
 
-  log(...msgs) {
+  record(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
     msgs.unshift(moment(new Date()).format(this.date_format));
     let line = msgs.join(' ') + '\r\n';
@@ -331,9 +339,14 @@ class BaseStation {
     });
   }
 
+  log(...msgs) {
+    this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
+    msgs.unshift(moment(new Date()).format(this.date_format));
+  }
+
   serverCheckin() {
     try {
-      this.log('checking in to server');
+      this.record('checking in to server');
       this.compute_module.getDiskUsagePercent().then((usage) => {
         let postData = {
           modem: {
@@ -366,7 +379,7 @@ class BaseStation {
         const req = http.request(options, (res) => {
           res.setEncoding('utf8');
           if (res.statusCode == 204) {
-            this.log('valid server checkin; reset beep count')
+            this.record('valid server checkin; reset beep count')
             this.beep_count_since_checkin = 0;
             this.unique_tags.clear();
             this.nodes.clear();
@@ -374,14 +387,14 @@ class BaseStation {
 
         });
         req.on('error', (e) => {
-          this.log(`checkin error: ${e.message}`)
+          this.record(`checkin error: ${e.message}`)
         })
         req.write(payload);
         req.end();
       });
 
     } catch(err) {
-      this.log('unable to checkin to server', err)
+      this.record('unable to checkin to server', err)
     }
   }
 
@@ -420,7 +433,7 @@ class BaseStation {
           });
         }
       }
-      this.log(`flush node alive cache: ${n} messages`);
+      this.record(`flush node alive cache: ${n} messages`);
     });
   }
 
@@ -464,7 +477,7 @@ class BaseStation {
           resolve()
         });
       }
-      this.log(`flush beep cache: ${n} beeps`);
+      this.record(`flush beep cache: ${n} beeps`);
     })
   }
 
@@ -477,7 +490,7 @@ class BaseStation {
   }
 
   start() {
-    this.log('starting radio receivers');
+    this.record('starting radio receivers');
     Object.keys(this.radios).forEach((channel) => {
       let port = this.radios[channel];
       let beep_reader = new RadioReceiver({
@@ -500,15 +513,15 @@ class BaseStation {
         this.handle_node_beep(node_beep);
       });
       beep_reader.on('response', (res) => {
-        this.log(`Radio ${res.channel} response: ${res.res}`)
+        this.record(`Radio ${res.channel} response: ${res.res}`)
       });
       beep_reader.start();
       beep_reader.on('open', (info) => {
-        this.log('opened radio on port', info.port_uri);
+        this.record('opened radio on port', info.port_uri);
         this.active_radios[info.port_uri] = info;
       });
       beep_reader.on('log', (msg) => {
-        this.log('Beep Reader '+beep_reader.port_uri+' Log: '+msg);
+        this.record('Beep Reader '+beep_reader.port_uri+' Log: '+msg);
       });
       beep_reader.on('close', (info) => {
         if (info.port_uri in Object.keys(this.active_radios)) {
@@ -523,6 +536,9 @@ class BaseStation {
     let info = node_alive.data.node_alive;
     let msg = `radio: ${node_alive.channel}; node ${info.id}; firmware: ${info.firmware}; battery: ${info.battery_mv/1000}V;`
     node_alive.msg_type='node-alive';
+    this.nodes.add(info.id);
+		this.total_nodes.add(info.id);
+
     this.node_cache.push({
       received_at: node_alive.received_at,
       channel: node_alive.channel,
@@ -568,6 +584,8 @@ class BaseStation {
       node_id: node_info.id,
       node_rssi: node_beep.rssi
     }));
+    this.nodes.add(node_info.id);
+		this.total_nodes.add(node_info.id);
   }
 
   handle_beep(beep) {
@@ -584,8 +602,6 @@ class BaseStation {
     beep.msg_type = 'beep';
     this.sensor_socket_server.broadcast(JSON.stringify(beep));
     this.unique_tags.add(beep.tag_id);
-    this.nodes.add(beep.node_id);
-    this.total_nodes.add(beep.node_id);
   }
 }
 
