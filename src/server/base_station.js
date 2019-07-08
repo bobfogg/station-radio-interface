@@ -75,7 +75,7 @@ class BaseStation {
       let line;
       switch (cmd.cmd) {
         case('about'):
-        let info = this.compute_module.data();
+        let info = new ComputeModule().data();
         info.station_id = this.imei;
         this.broadcast(JSON.stringify({
           msg_type: 'about',
