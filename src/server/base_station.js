@@ -410,11 +410,12 @@ class BaseStation {
         'Celsius',
       ];
       let n = 0;
+
       while (this.node_cache.length > 0) {
         n += 1;
         node_alive = this.node_cache.shift();
         vals = [
-          node_alive.received_at.format(this.date_format),
+          node_alive.received_at.toISOString(),
           node_alive.channel,
           node_alive.node_id,
           node_alive.rssi,
@@ -422,16 +423,18 @@ class BaseStation {
           node_alive.celsius
         ];
         lines.push(vals.join(','));
-        if (lines.length > 0) {
-          if (!fs.existsSync(this.node_file_uri)) {
-            lines.unshift(header.join(','));
-          }
-          fs.appendFile(this.node_file_uri, lines.join('\r\n')+'\r\n', (err) =>{
-            if (err) {
-              reject(err);
-            }
-          });
+      }
+      if (lines.length > 0) {
+        // data to write to file - verify that the ile exists
+        if (!fs.existsSync(this.node_file_uri)) {
+          // add header line if the file does not exists
+          lines.unshift(header.join(','));
         }
+        fs.appendFile(this.node_file_uri, lines.join('\r\n')+'\r\n', (err) =>{
+          if (err) {
+            reject(err);
+          }
+        });
       }
       this.record(`flush node alive cache: ${n} messages`);
     });
@@ -455,7 +458,7 @@ class BaseStation {
         n += 1;
         beep = this.beep_cache.shift();
         vals = [
-          beep.received_at.format(this.date_format),
+          beep.received_at.toISOString(),
           beep.channel,
           beep.tag_id,
           beep.tag_rssi,
