@@ -42,6 +42,7 @@ class BaseStation {
     this.rotation_freq = opts.rotation_freq;
     this.imei = info.imei;
     this.sim = info.sim;
+    this.signal = info.signal;
     this.updating_screen = false;
     this.uploading = false;
     this.upload_freq = opts.upload_freq;
@@ -178,14 +179,24 @@ class BaseStation {
     }
     this.updating_screen = true;
     let view  = welcome ? 'welcome' : 'main';
+    let mode = this.gps_info.mode;
+    if (!mode) {
+      mode = 0;
+    }
+    if (mode < 0) {
+      mode = 0;
+    }
+    if (mode > 3) {
+      mode = 3;
+    }
     let args =[
-      '/home/pi/ctt/caseys-software/update_screen.py',
+      '/home/pi/ctt/eink-software/update_screen.py',
       '--beeps',
       this.beep_count_total,
       '--nodes',
       this.total_nodes.size,
       '--gps',
-      3,
+      mode,
       '--signal',
       0,
       '--view',
