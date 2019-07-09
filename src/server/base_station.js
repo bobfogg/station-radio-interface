@@ -34,12 +34,16 @@ class BaseStation {
     this.node_data_filename = `CTT-${info.imei}-node-data.csv`;
     this.node_file_uri = path.join(this.base_log_dir, this.node_data_filename);
 
+    this.gps_data_filename = `CTT-${info.imei}-gps.csv`;
+    this.gps_file_uri = path.join(this.base_log_dir, this.gps_data_filename);
+
     this.update_screen_freq = opts.update_screen_freq;
     this.beep_cache = [];
     this.node_cache = [];
     this.flush_freq = opts.flush_data_secs;
     this.server_checkin_freq = opts.server_checkin_freq;
     this.rotation_freq = opts.rotation_freq;
+    this.gps_rotation_freq = opts.gps_rotation_freq;
     this.imei = info.imei;
     this.sim = info.sim;
     this.signal = info.signal;
@@ -54,6 +58,7 @@ class BaseStation {
     this.server_checkin_url = '/station/v1/checkin/';
     this.record_data = true;
     this.write_errors = opts.write_errors;
+    this.gps_record_freq = opts.gps_record_freq;
     this.beep_count_since_checkin = 0;
     this.beep_count_total = 0;
     this.nodes = new Set();
@@ -136,10 +141,19 @@ class BaseStation {
     this.heartbeat.createEvent(this.server_checkin_freq, (count, last) => {
         this.serverCheckin();
     });
+    this.heartbeat.createEvent(this.gps_record_freq, (count, last) => {
+      this.logGPS();
+    });
+    this.heartbeat.createEvent(this.gps_rotation_freq, (count, last) => {
+      this.record('rotating gps data file');
+      this.rotateDataFile(this.gps_file_uri, this.gps_data_filename);
+    });
     this.heartbeat.createEvent(this.rotation_freq, (count, last) => {
       this.record('rotating radio tag data file');
       this.rotateDataFile(this.data_file_uri, this.base_data_filename).then((res) => {
-        this.rotateDataFile(this.node_file_uri, this.node_data_filename);
+        this.record('rotating node file data');
+        this.rotateDataFile(this.node_file_uri, this.node_data_filename).then((res) => {
+        });
       }).catch((err) => {
         this.record('error rotating data file')
         console.error(err);
@@ -413,6 +427,38 @@ class BaseStation {
     } catch(err) {
       this.record('unable to checkin to server', err)
     }
+  }
+
+  logGPS() {
+    return new Promise((resolve, reject) => {
+      let lines = [];
+      let header = [
+        'recorded at',
+        'gps at',
+        'latitude',
+        'longitude',
+        'altitude',
+        'quality'
+      ]
+      let line = [
+        moment(new Date()).toISOString(),
+        this.gps_info.time, 
+        this.gps_info.lat, 
+        this.gps_info.lon,
+        this.gps_info.alt,
+        this.gps_info.mode
+      ].join(',');
+      lines.push(line);
+      if (!fs.existsSync(this.gps_file_uri)) {
+        lines.unshift(header);
+      }
+      fs.appendFile(this.gps_file_uri, lines.join('\r\n')+'\r\n', (err) => {
+        if (err) {
+          reject(err);
+        }
+        resolve();
+      })
+    })
   }
 
   writeNodes() {
