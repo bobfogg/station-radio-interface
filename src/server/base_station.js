@@ -68,7 +68,6 @@ class BaseStation {
       lon: null
     };
 
-
     this.sensor_socket_server = new SensorSocketServer({
       port: 8001
     });
@@ -102,15 +101,15 @@ class BaseStation {
           switch (cmd.data.type) {
             case('node'):
             line = "mode:node_v2";
-            this.record('toggle node mode on radio', channel, JSON.stringify(cmd));
+            this.record('toggle node mode on radio', channel);
             radio.write("mode:node_v2");
             break;
             case('tag'):
-            this.record('toggle lifetag mode on radio', channel)
+            this.record('toggle lifetag mode on radio', channel);
             radio.write("mode:tag_fsk");
             break;
-            case('cornell'):
-            this.record('toggle cornell mode on radio', channel)
+            case('ook'):
+            this.record('toggle ook mode on radio', channel);
             radio.write("mode:tag_ook");
             break;
             default:
@@ -170,6 +169,13 @@ class BaseStation {
     })
     this.gps_listener.watch();
     this.updateDisplay(true); // turn on welcome screen
+  }
+
+  startModem() {
+    const cmd = new spawn('systemctl start modem.service');
+    cmd.stderr.on('data', (err) => {
+      this.log('error starting modem service', err.toString());
+    })
   }
 
   updateDisplay(welcome=false) {
