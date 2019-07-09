@@ -59,12 +59,12 @@ class RadioReceiver extends EventEmitter {
       this.active = false;
       this.emit('close', this.data());
       // if the radio is closes - restart after given delay
-      this.start(this.restart_ms);
     });
     port.on('error', (err) => {
       this.log('serial error', err);
       this.active = false;
       this.emit('close', this.data());
+      this.start(this.restart_ms);
     });
     this.serialport = port;
     let parser = new Readline();
