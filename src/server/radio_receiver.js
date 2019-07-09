@@ -9,6 +9,7 @@ class RadioReceiver extends EventEmitter {
     this.port_uri = opts.port_uri;
     this.baud_rate = opts.baud_rate;
     this.channel = opts.channel;
+    this.restart_ms = 5000;
     this.serialport;
     this.parser;
     this.active = false;
@@ -34,12 +35,17 @@ class RadioReceiver extends EventEmitter {
     }
   }
 
-  start() {
-    this.parser= this.buildSerialInterface();
+  start(delay=0) {
+    // start the radio after given delay in ms
+    let self = this;
+    //this.parser= this.buildSerialInterface();
+    setTimeout(() => {
+      self.buildSerialInterface();
+    }, delay);
   }
 
   buildSerialInterface() {
-    const port = new SerialPort(this.port_uri, {
+    let port = new SerialPort(this.port_uri, {
       baudRate: this.baud_rate
     });
     port.on('open', () => {
@@ -52,6 +58,8 @@ class RadioReceiver extends EventEmitter {
       this.log('closed');
       this.active = false;
       this.emit('close', this.data());
+      // if the radio is closes - restart after given delay
+      this.start(this.restart_ms);
     });
     port.on('error', (err) => {
       this.log('serial error', err);
@@ -59,7 +67,7 @@ class RadioReceiver extends EventEmitter {
       this.emit('close', this.data());
     });
     this.serialport = port;
-    const parser = new Readline();
+    let parser = new Readline();
     parser.on('data', (line) => {
       let raw_beep;
       let now = moment(new Date()).utc();
@@ -105,7 +113,7 @@ class RadioReceiver extends EventEmitter {
       console.log('unknown line');
       console.log(raw_beep);
     });
-    return port.pipe(parser);
+    this.parser = port.pipe(parser);
   }
 }
 

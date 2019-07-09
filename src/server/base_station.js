@@ -529,7 +529,7 @@ class BaseStation {
       beep_reader.on('response', (res) => {
         this.record(`Radio ${res.channel} response: ${res.res}`)
       });
-      beep_reader.start();
+      beep_reader.start(1000);
       beep_reader.on('open', (info) => {
         this.record('opened radio on port', info.port_uri);
         this.active_radios[info.port_uri] = info;
