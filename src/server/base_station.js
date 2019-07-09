@@ -316,7 +316,7 @@ class BaseStation {
           return;
         }
         let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
-        let newname = `${new_basename}.${now}`
+        let newname = `${new_basename.replace('.csv','')}.${now}.csv`
         // ensure rotation directory exists
         this.createDir(path.join(this.base_log_dir, 'rotated')); 
         this.rotated_uri = path.join(this.base_log_dir, 'rotated', newname);
