@@ -183,13 +183,17 @@ class BaseStation {
     })
     this.gps_listener.watch();
     this.updateDisplay(true); // turn on welcome screen
+    this.startModem();
   }
 
   startModem() {
-    const cmd = new spawn('systemctl start modem.service');
+    const cmd = spawn('systemctl', ['start',  'modem.service']);
     cmd.stderr.on('data', (err) => {
       this.log('error starting modem service', err.toString());
-    })
+    });
+    cmd.stdout.on('data', (data) => {
+      this.log(data);
+    });
   }
 
   updateDisplay(welcome=false) {
