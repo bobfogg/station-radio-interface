@@ -188,12 +188,16 @@ class BaseStation {
 
   startModem() {
     const cmd = spawn('systemctl', ['start',  'modem.service']);
+    this.record('starting modem service');
     cmd.stderr.on('data', (err) => {
-      this.log('error starting modem service', err.toString());
+      this.record('error starting modem service', err.toString());
     });
     cmd.stdout.on('data', (data) => {
-      this.log(data);
+      this.record(data);
     });
+    cmd.on('close', (code) => {
+      this.record("modem done starting");
+    })
   }
 
   updateDisplay(welcome=false) {
