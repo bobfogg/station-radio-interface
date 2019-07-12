@@ -9,7 +9,7 @@ class RadioReceiver extends EventEmitter {
     this.port_uri = opts.port_uri;
     this.baud_rate = opts.baud_rate;
     this.channel = opts.channel;
-    this.restart_ms = 5000;
+    this.restart_ms = 15000;
     this.serialport;
     this.parser;
     this.active = false;
