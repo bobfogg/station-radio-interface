@@ -371,7 +371,7 @@ class BaseStation {
 
   record(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
-    msgs.unshift(moment(new Date()).format(this.date_format));
+    msgs.unshift(moment(new Date()).utc().format(this.date_format));
     let line = msgs.join(' ') + '\r\n';
     fs.appendFile(this.log_file_uri, line, (err) => {
       if (err) throw err;
@@ -380,7 +380,7 @@ class BaseStation {
 
   log(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
-    msgs.unshift(moment(new Date()).format(this.date_format));
+    msgs.unshift(moment(new Date()).utc().format(this.date_format));
   }
 
   serverCheckin() {
