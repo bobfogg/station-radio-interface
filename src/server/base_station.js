@@ -144,15 +144,13 @@ class BaseStation {
     this.heartbeat.createEvent(this.gps_record_freq, (count, last) => {
       this.logGPS();
     });
-    this.heartbeat.createEvent(this.gps_rotation_freq, (count, last) => {
-      this.record('rotating gps data file');
-      this.rotateDataFile(this.gps_file_uri, this.gps_data_filename);
-    });
     this.heartbeat.createEvent(this.rotation_freq, (count, last) => {
       this.record('rotating radio tag data file');
       this.rotateDataFile(this.data_file_uri, this.base_data_filename).then((res) => {
         this.record('rotating node file data');
         this.rotateDataFile(this.node_file_uri, this.node_data_filename).then((res) => {
+          this.record('rotating gps data file');
+          this.rotateDataFile(this.gps_file_uri, this.gps_data_filename);
         });
       }).catch((err) => {
         this.record('error rotating data file')

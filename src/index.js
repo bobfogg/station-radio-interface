@@ -9,7 +9,7 @@ const station = new BaseStation({
   update_screen_freq: 90, //90 sec screen update
   rotation_freq: 60 * 60,  // 60 minute rotation
   upload_freq: 61.3 * 60 * 2, // hourly
-  gps_record_freq: 15 * 60,
+  gps_record_freq: 15 * 60, // 15 minute GPS fix
   gps_rotation_freq: 60 * 60 * 12, // rotate every 12 hours
 });
 station.start({});
