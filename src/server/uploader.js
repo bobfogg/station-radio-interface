@@ -1,4 +1,3 @@
-import { S3 } from 'aws-sdk/clients/s3';
 const AWS = require('aws-sdk');
 const EventEmitter = require('events');
 const moment = require('moment');
