@@ -15,7 +15,7 @@ class Uploader extends EventEmitter {
     this.api_version = '2006-03-01';
   }
 
-  getFiles(file_pattern) {
+  getFiles(file_pattern, delay) {
     return new Promise((resolve, reject) => {
       glob(file_pattern, (err, filenames) => {
         if (err) {
@@ -31,7 +31,7 @@ class Uploader extends EventEmitter {
           return 0;
         }).filter((filename) => {
           let stats = fs.statSync(filename);
-          if ((new Date() - stats.mtime) < 1000*60*61) {
+          if ((new Date() - stats.mtime) < delay) {
             // filter out files that have been modified within 61 minutes
             return false;
           }
@@ -43,8 +43,9 @@ class Uploader extends EventEmitter {
 
   getFilesToUpload() {
     return new Promise((resolve) => {
-      this.getFiles('/data/rotated/*.gz').then((ctt_files) => {
-        this.getFiles('/data/SGdata/*/*.gz').then((sg_files) => {
+      this.getFiles('/data/rotated/*.gz', 0).then((ctt_files) => {
+        let sg_time_delay = 1000*60*61 // only retrive files modified > 1 hour
+        this.getFiles('/data/SGdata/*/*.gz', sg_time_delay).then((sg_files) => {
           resolve({
             'ctt': ctt_files,
             'sg': sg_files
