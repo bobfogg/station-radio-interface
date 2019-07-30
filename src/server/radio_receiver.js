@@ -89,29 +89,31 @@ class RadioReceiver extends EventEmitter {
         this.emit('fw', raw_beep);
         return;
       }
-      if (raw_beep.data.tag) {
-        this.emit('beep', {
-          received_at: now,
-          tag_at: now,
-          channel: this.channel,
-          tag_id: raw_beep.data.tag.id,
-          rssi: raw_beep.rssi,
-          error_bits: raw_beep.data.tag.error_bits,
-          node_id: null,
-          node_rssi: null
-        });
-        return;
+      if (raw_beep.data) {
+        if (raw_beep.data.tag) {
+          this.emit('beep', {
+            received_at: now,
+            tag_at: now,
+            channel: this.channel,
+            tag_id: raw_beep.data.tag.id,
+            rssi: raw_beep.rssi,
+            error_bits: raw_beep.data.tag.error_bits,
+            node_id: null,
+            node_rssi: null
+          });
+          return;
+        }
+        if (raw_beep.data.node_alive) {
+          this.emit('node-alive', raw_beep)
+          return;
+        }
+        if (raw_beep.data.node_beep) {
+          this.emit('node-beep', raw_beep);
+          return;
+        }
       }
-      if (raw_beep.data.node_alive) {
-        this.emit('node-alive', raw_beep)
-        return;
-      }
-      if (raw_beep.data.node_beep) {
-        this.emit('node-beep', raw_beep);
-        return;
-      }
-      console.log('unknown line');
-      console.log(raw_beep);
+      //console.log('unknown line');
+      //console.log(raw_beep);
     });
     this.parser = port.pipe(parser);
   }
