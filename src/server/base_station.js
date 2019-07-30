@@ -132,6 +132,9 @@ class BaseStation {
     })
 
     this.heartbeat = heartbeats.createHeart(1000);
+    this.heartbeat.createEvent(60*2, (count, last) => {
+      this.toggleModemLight();
+    });
     this.heartbeat.createEvent(this.flush_freq, (count, last) => {
       if (this.record_data) {
         this.writeBeeps();
@@ -182,6 +185,22 @@ class BaseStation {
     this.gps_listener.watch();
     this.updateDisplay(true); // turn on welcome screen
     this.startModem();
+  }
+
+  toggleModemLight() {
+    const cmd = spawn('python', ['/home/pi/modem_light.py']);
+    cmd.stderr.on('data', (err) => {
+      this.log('error toggling modem light', err.toString());
+    });
+    cmd.stdout.on('data', (data) => {
+      this.log(data.toString());
+    });
+    cmd.on('close', (code) => {
+      this.log('modem diagnostic light toggled')
+    });
+    cmd.on('error', (err) => {
+      this.log(err.toString());
+    })
   }
 
   startModem() {
@@ -333,6 +352,7 @@ class BaseStation {
         if (err) {
           // file access error - doesn't exist / bad perms  nothing to rotate
           this.record('no data file to rotate');
+          console.error(err);
           return;
         }
         let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
@@ -420,6 +440,16 @@ class BaseStation {
             this.beep_count_since_checkin = 0;
             this.unique_tags.clear();
             this.nodes.clear();
+          } else {
+            res.on('data', (data) => {
+              console.log(data.toString());
+            })
+            res.on('close', () => {
+              console.log('done');
+            });
+            res.on('end', (data) => {
+              console.log('ended');
+            });
           }
 
         });
