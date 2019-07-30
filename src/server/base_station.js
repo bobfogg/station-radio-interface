@@ -26,6 +26,8 @@ class BaseStation {
     this.log_filename = 'sensor-station.log';
     this.log_file_uri = path.join(this.base_log_dir, this.log_filename);
     this.record('initializing base station');
+    this.toggle_modem_light_freq = 60 * 2;
+    this.server_update_freq = 60*60*24;
 
     let info = this.getId();
     this.base_data_filename = `CTT-${info.imei}-data.csv`;
@@ -56,6 +58,7 @@ class BaseStation {
     this.hostname = 'account.celltracktech.com';
     this.port = 80;
     this.server_checkin_url = '/station/v1/checkin/';
+    this.server_update_url = '/station/v1/update/';
     this.record_data = true;
     this.write_errors = opts.write_errors;
     this.gps_record_freq = opts.gps_record_freq;
@@ -132,9 +135,13 @@ class BaseStation {
     })
 
     this.heartbeat = heartbeats.createHeart(1000);
-    this.heartbeat.createEvent(60*2, (count, last) => {
+    this.heartbeat.createEvent(this.toggle_modem_light_freq, (count, last) => {
       this.toggleModemLight();
     });
+    this.heartbeat.createEvent(this.server_update_freq, (count, last) => {
+      this.updateSelf();
+    });
+    this.updateSelf();
     this.heartbeat.createEvent(this.flush_freq, (count, last) => {
       if (this.record_data) {
         this.writeBeeps();
@@ -462,6 +469,66 @@ class BaseStation {
 
     } catch(err) {
       this.record('unable to checkin to server', err)
+    }
+  }
+
+  updateSelf() {
+    try {
+      this.record('checking for system update');
+      let postData = {
+        modem: {
+        imei: this.imei,
+        sim: this.sim
+        }
+      }
+      const payload = JSON.stringify(postData);
+      const options = {
+        hostname: this.hostname,
+        port: this.port,
+        path: this.server_update_url,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': payload.length
+        }
+      };
+      const req = http.request(options, (res) => {
+        let buffer = '';
+        res.setEncoding('utf8');
+        if (res.statusCode == 200) {
+          this.record('rx server update response')
+        } 
+        res.on('data', (data) => {
+          buffer += data.toString();
+        })
+        res.on('close', () => {
+          console.log('done');
+        });
+        res.on('end', (data) => {
+          if (buffer.length > 0) {
+            this.record('server delivered an update file');
+            fs.writeFile('/tmp/server-update.sh', buffer, (err) => {
+              const cmd = spawn('/bin/bash', ['/tmp/server-update.sh']);
+              cmd.on('close', (code) => {
+                this.record('finished running update script with code', code.toString());
+              });
+              cmd.stderr.on('data', (data) => {
+                this.log(data.toString());
+              });
+              cmd.stdout.on('data', (data) => {
+                this.log('running', data.toString());
+              })
+            })
+          }
+        });
+      });
+      req.on('error', (e) => {
+        this.record(`server update error: ${e.message}`)
+      })
+      req.write(payload);
+      req.end();
+    } catch(err) {
+      this.record('unable to check for system update', err.toString())
     }
   }
 
