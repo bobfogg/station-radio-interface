@@ -360,6 +360,7 @@ class BaseStation {
           // file access error - doesn't exist / bad perms  nothing to rotate
           this.record('no data file to rotate');
           console.error(err);
+          resolve(false);
           return;
         }
         let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
@@ -371,6 +372,7 @@ class BaseStation {
           if (err) {
             this.record('error rotating data file', err);
             reject(err);
+            return;
           }
           const inp = fs.createReadStream(this.rotated_uri);
           const out = fs.createWriteStream(this.rotated_uri+'.gz');
@@ -382,8 +384,9 @@ class BaseStation {
               if (err) {
                 this.record('error deleting rotated file', err);
                 reject(err);
+              } else {
+                resolve(true);
               }
-              resolve(true);
             });
           });
           out.on('error', (err) => {
