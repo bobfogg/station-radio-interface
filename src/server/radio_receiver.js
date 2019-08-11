@@ -71,6 +71,13 @@ class RadioReceiver extends EventEmitter {
     parser.on('data', (line) => {
       let raw_beep;
       let now = moment(new Date()).utc();
+      if (line.search('es200') != -1) {
+        this.emit('es200', {
+          received_at: now,
+          data: line.trim()
+        });
+        return;
+      }
       try {
         raw_beep = JSON.parse(line);
         raw_beep.channel = this.channel;
@@ -85,7 +92,6 @@ class RadioReceiver extends EventEmitter {
         return;
       }
       if (raw_beep.firmware) {
-        raw_beep.channel = this.channel;
         this.emit('fw', raw_beep);
         return;
       }

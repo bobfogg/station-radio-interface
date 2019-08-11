@@ -42,6 +42,7 @@ class BaseStation {
     this.update_screen_freq = opts.update_screen_freq;
     this.beep_cache = [];
     this.node_cache = [];
+    this.es200_cache = [];
     this.flush_freq = opts.flush_data_secs;
     this.server_checkin_freq = opts.server_checkin_freq;
     this.rotation_freq = opts.rotation_freq;
@@ -638,6 +639,11 @@ class BaseStation {
         }
         lines.push(vals.join(','));
       }
+      while (this.es200_cache.length > 0) {
+        beep = this.es200_cache.shift();
+        n += 1;
+        lines.push(JSON.stringify(beep));
+      }
       if (lines.length > 0) {
         if (!fs.existsSync(this.data_file_uri)) {
           lines.unshift(header.join(','));
@@ -673,6 +679,9 @@ class BaseStation {
       beep_reader.on('beep', (beep) => {
         this.handle_beep(beep); 
       });
+      beep_reader.on('es200', (beep) => {
+        this.handle_es200(beep);
+      });
       beep_reader.on('fw', (fw) => {
         this.log('fw query', fw);
         fw.msg_type = 'fw';
@@ -702,6 +711,11 @@ class BaseStation {
       this.active_radios[channel] = beep_reader;
     });
     this.serverCheckin();
+  }
+
+  handle_es200(beep) {
+    console.log(beep);
+    this.es200_cache.push(beep);
   }
 
   handle_node_alive(node_alive) {
