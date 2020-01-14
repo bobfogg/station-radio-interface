@@ -12,4 +12,4 @@ const station = new BaseStation({
   gps_record_freq: 15 * 60, // 15 minute GPS fix
   gps_rotation_freq: 60 * 60 * 12, // rotate every 12 hours
 });
-station.start({});
+station.init({});

@@ -23,21 +23,8 @@ class BaseStation {
     }
     this.active_radios = {};
     this.base_log_dir = opts.base_log_dir
-    this.log_filename = 'sensor-station.log';
-    this.log_file_uri = path.join(this.base_log_dir, this.log_filename);
-    this.record('initializing base station');
     this.toggle_modem_light_freq = 60 * 2;
     this.server_update_freq = 60*60*24;
-
-    let info = this.getId();
-    this.base_data_filename = `CTT-${info.imei}-data.csv`;
-    this.data_file_uri = path.join(this.base_log_dir, this.base_data_filename);
-
-    this.node_data_filename = `CTT-${info.imei}-node-data.csv`;
-    this.node_file_uri = path.join(this.base_log_dir, this.node_data_filename);
-
-    this.gps_data_filename = `CTT-${info.imei}-gps.csv`;
-    this.gps_file_uri = path.join(this.base_log_dir, this.gps_data_filename);
 
     this.update_screen_freq = opts.update_screen_freq;
     this.beep_cache = [];
@@ -46,9 +33,6 @@ class BaseStation {
     this.server_checkin_freq = opts.server_checkin_freq;
     this.rotation_freq = opts.rotation_freq;
     this.gps_rotation_freq = opts.gps_rotation_freq;
-    this.imei = info.imei;
-    this.sim = info.sim;
-    this.signal = info.signal;
     this.updating_screen = false;
     this.uploading = false;
     this.upload_freq = opts.upload_freq;
@@ -76,6 +60,33 @@ class BaseStation {
       lon: null
     };
 
+  }
+
+  init() {
+    this.station_id = this.getId();
+    this.base_data_filename = `CTT-${this.station_id}-data.csv`;
+    this.data_file_uri = path.join(this.base_log_dir, this.base_data_filename);
+
+    this.node_data_filename = `CTT-${this.station_id}-node-data.csv`;
+    this.node_file_uri = path.join(this.base_log_dir, this.node_data_filename);
+
+    this.gps_data_filename = `CTT-${this.station_id}-gps.csv`;
+    this.gps_file_uri = path.join(this.base_log_dir, this.gps_data_filename);
+
+    this.log_filename = `sensor-station-${this.station_id}.log`;
+    this.log_file_uri = path.join(this.base_log_dir, this.log_filename);
+
+    this.record('initializing base station');
+    this.updateDisplay(true); // turn on welcome screen
+    this.startModem();
+    this.startWebsocketServer();
+    this.startTimers();
+    this.startGpsClient();
+    this.start();
+  }
+
+  startWebsocketServer() {
+
     this.sensor_socket_server = new SensorSocketServer({
       port: 8001
     });
@@ -84,7 +95,7 @@ class BaseStation {
       switch (cmd.cmd) {
         case('about'):
         let info = new ComputeModule().data();
-        info.station_id = this.imei;
+        info.station_id = this.station_id;
         this.broadcast(JSON.stringify({
           msg_type: 'about',
           data: info
@@ -97,7 +108,7 @@ class BaseStation {
           try {
             radio.write("save");
           } catch(err) {
-            console.log('serror saving radio');
+            console.log(`error saving radio on channel ${channel}`);
             console.error(err);
           }
         });
@@ -110,15 +121,45 @@ class BaseStation {
             case('node'):
             line = "mode:node_v2";
             this.record('toggle node mode on radio', channel);
-            radio.write("mode:node_v2");
+            //radio.write("mode:node_v2");
+            console.log('writing to radio');
+            radio.write("rx_type:1");
+            setTimeout(() => {
+              console.log('setting frequency');
+              radio.write("frequency:433.25");
+            }, 250);
+            setTimeout(() => {
+              console.log('setting rxbw');
+              radio.write("rxbw:31.3");
+            }, 500);
+            setTimeout(() => {
+              console.log('setting rx_async');
+              radio.write("rx_async:0");
+            }, 750);
+
             break;
             case('tag'):
             this.record('toggle lifetag mode on radio', channel);
-            radio.write("mode:tag_fsk");
+            //radio.write("mode:tag_fsk");
+            console.log('writing to radio');
+            radio.write("rx_type:0");
+            setTimeout(() => {
+              console.log('setting frequency');
+              radio.write("frequency:434.0");
+            }, 250);
+            setTimeout(() => {
+              console.log('setting rxbw');
+              radio.write("rxbw:25.0");
+            }, 500);
+            setTimeout(() => {
+              console.log('setting rx_async');
+              radio.write("rx_async:1");
+            }, 750);
             break;
             case('ook'):
             this.record('toggle ook mode on radio', channel);
             radio.write("mode:tag_ook");
+
             break;
             default:
               this.record('invalid command type', cmd);
@@ -133,6 +174,9 @@ class BaseStation {
     this.sensor_socket_server.on('client_conn', (ip) => {
       this.log(`client connected from IP: ${ip}`);
     })
+  }
+
+  startTimers() {
 
     this.heartbeat = heartbeats.createHeart(1000);
     this.heartbeat.createEvent(this.toggle_modem_light_freq, (count, last) => {
@@ -173,6 +217,11 @@ class BaseStation {
     this.heartbeat.createEvent(this.upload_freq, (count, last) => {
       this.uploadFiles();
     });
+
+  }
+  
+  startGpsClient() {
+
     this.gps_listener = new gpsd.Listener({
       port: 2947,
       hostname: 'localhost',
@@ -190,8 +239,6 @@ class BaseStation {
       Object.assign(this.gps_info, data);
     })
     this.gps_listener.watch();
-    this.updateDisplay(true); // turn on welcome screen
-    this.startModem();
   }
 
   toggleModemLight() {
@@ -284,7 +331,8 @@ class BaseStation {
 
   getId() {
     let contents = fs.readFileSync('/etc/station-id');
-    return JSON.parse(contents);
+    let meta = JSON.parse(contents);
+    return meta.id;
   }
 
   broadcast(msg) {

@@ -23,6 +23,7 @@ class RadioReceiver extends EventEmitter {
   }
 
   write(data) {
+    console.log(`writing to radio ${this.channel}:  ${data.trim()}`)
     this.serialport.write(data.trim()+'\r\n');
   }
 
@@ -69,6 +70,7 @@ class RadioReceiver extends EventEmitter {
     this.serialport = port;
     let parser = new Readline();
     parser.on('data', (line) => {
+      console.log(`rx ${this.channel}`, line);
       let raw_beep;
       let now = moment(new Date()).utc();
       try {
@@ -89,6 +91,45 @@ class RadioReceiver extends EventEmitter {
         this.emit('fw', raw_beep);
         return;
       }
+      if (raw_beep.protocol) {
+        let beep, beep_type;
+        beep = {
+          received_at: now,
+          tag_at: now,
+          channel: this.channel,
+          tag_id: raw_beep.data.id,
+          rssi: raw_beep.meta.rssi,
+          node_id: null,
+          node_rssi: null
+        };
+
+        switch(raw_beep.meta.data_type) {
+          case 'coded_id': 
+            beep_type = 'beep';
+            break;
+          case 'node_coded_id':
+            beep_type = 'node-beep';
+            beep.node_id = raw_beep.meta.source.id;
+            beep.node_rssi = raw_beep.meta.rssi;
+            break;
+          case 'node_telemetry':
+            beep = raw_beep;
+            beep_type = 'node-telemetry';
+            break;
+          case 'node_health':
+            beep_type = 'node-alive';
+            beep = raw_beep;
+            break;
+          default:
+            beep = raw_beep;
+            beep_type = 'unknown'
+            console.log('unknown beep', raw_beep);
+            break;
+        }
+        this.emit(beep_type, beep);
+        return;
+      }
+
       if (raw_beep.data) {
         if (raw_beep.data.tag) {
           this.emit('beep', {
