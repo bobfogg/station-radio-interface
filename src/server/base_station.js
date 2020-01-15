@@ -64,7 +64,7 @@ class BaseStation {
 
   init() {
     this.station_id = this.getId();
-    this.base_data_filename = `CTT-${this.station_id}-data.csv`;
+    this.base_data_filename = `CTT-${this.station_id}-raw-data.csv`;
     this.data_file_uri = path.join(this.base_log_dir, this.base_data_filename);
 
     this.node_data_filename = `CTT-${this.station_id}-node-data.csv`;
