@@ -5,7 +5,7 @@ import { Uploader } from './uploader';
 const fs = require('fs');
 const heartbeats = require('heartbeats');
 const moment = require('moment');
-const http = require('http');
+const http = require('https');
 const path = require('path');
 const gpsd = require('node-gpsd');
 const zlib = require('zlib');
@@ -40,7 +40,7 @@ class BaseStation {
     this.current_upload_file;
     this.date_format = 'YYYY-MM-DD HH:mm:ss';
     this.hostname = 'account.celltracktech.com';
-    this.port = 80;
+    this.port = 443;
     this.server_checkin_url = '/station/v1/checkin/';
     this.server_update_url = '/station/v1/update/';
     this.record_data = true;
@@ -493,17 +493,19 @@ class BaseStation {
         };
         const req = http.request(options, (res) => {
           res.setEncoding('utf8');
+          let buffer = '';
           if (res.statusCode == 204) {
             this.record('valid server checkin; reset beep count')
             this.beep_count_since_checkin = 0;
             this.unique_tags.clear();
             this.nodes.clear();
           } else {
+            console.error(`bad response code ${res.statusCode} at host:path ${this.hostname}:${this.server_checkin_url}`);
             res.on('data', (data) => {
-              console.log(data.toString());
+              buffer += data.toString();
             })
             res.on('close', () => {
-              console.log('done');
+              console.log(buffer);
             });
             res.on('end', (data) => {
               console.log('ended');
