@@ -1,16 +1,13 @@
 import { RadioReceiver } from './radio_receiver';
 import { ComputeModule } from './compute-module';
 import { SensorSocketServer } from './web-socket-server';
-import { Uploader } from './uploader';
 const fs = require('fs');
 const heartbeats = require('heartbeats');
 const moment = require('moment');
-const http = require('https');
+const http = require('http');
 const path = require('path');
 const gpsd = require('node-gpsd');
-const zlib = require('zlib');
 const { spawn }  = require('child_process');
-const glob = require('glob');
 
 class BaseStation {
   constructor(opts) {
@@ -30,18 +27,10 @@ class BaseStation {
     this.beep_cache = [];
     this.node_cache = [];
     this.flush_freq = opts.flush_data_secs;
-    this.server_checkin_freq = opts.server_checkin_freq;
-    this.rotation_freq = opts.rotation_freq;
     this.gps_rotation_freq = opts.gps_rotation_freq;
-    this.updating_screen = false;
-    this.uploading = false;
-    this.upload_freq = opts.upload_freq;
-    this.uploader = new Uploader(this.imei);
-    this.current_upload_file;
     this.date_format = 'YYYY-MM-DD HH:mm:ss';
     this.hostname = 'account.celltracktech.com';
     this.port = 443;
-    this.server_checkin_url = '/station/v1/checkin/';
     this.server_update_url = '/station/v1/update/';
     this.record_data = true;
     this.write_errors = opts.write_errors;
@@ -76,8 +65,8 @@ class BaseStation {
     this.log_filename = `sensor-station-${this.station_id}.log`;
     this.log_file_uri = path.join(this.base_log_dir, this.log_filename);
 
+    this.updateSelf();
     this.record('initializing base station');
-    this.updateDisplay(true); // turn on welcome screen
     this.startModem();
     this.startWebsocketServer();
     this.startTimers();
@@ -86,7 +75,6 @@ class BaseStation {
   }
 
   startWebsocketServer() {
-
     this.sensor_socket_server = new SensorSocketServer({
       port: 8001
     });
@@ -119,46 +107,20 @@ class BaseStation {
           let radio = this.active_radios[channel];
           switch (cmd.data.type) {
             case('node'):
-            line = "mode:node_v2";
+            line = "preset:node";
             this.record('toggle node mode on radio', channel);
             //radio.write("mode:node_v2");
-            console.log('writing to radio');
-            radio.write("rx_type:1");
-            setTimeout(() => {
-              console.log('setting frequency');
-              radio.write("frequency:433.25");
-            }, 250);
-            setTimeout(() => {
-              console.log('setting rxbw');
-              radio.write("rxbw:31.3");
-            }, 500);
-            setTimeout(() => {
-              console.log('setting rx_async');
-              radio.write("rx_async:0");
-            }, 750);
-
+            radio.write("preset:node2");
             break;
             case('tag'):
             this.record('toggle lifetag mode on radio', channel);
             //radio.write("mode:tag_fsk");
             console.log('writing to radio');
-            radio.write("rx_type:0");
-            setTimeout(() => {
-              console.log('setting frequency');
-              radio.write("frequency:434.0");
-            }, 250);
-            setTimeout(() => {
-              console.log('setting rxbw');
-              radio.write("rxbw:25.0");
-            }, 500);
-            setTimeout(() => {
-              console.log('setting rx_async');
-              radio.write("rx_async:1");
-            }, 750);
+            radio.write("preset:fsktag");
             break;
             case('ook'):
             this.record('toggle ook mode on radio', channel);
-            radio.write("mode:tag_ook");
+            radio.write("preset:node3");
 
             break;
             default:
@@ -177,51 +139,22 @@ class BaseStation {
   }
 
   startTimers() {
-
     this.heartbeat = heartbeats.createHeart(1000);
-    this.heartbeat.createEvent(this.toggle_modem_light_freq, (count, last) => {
-      this.toggleModemLight();
-    });
     this.heartbeat.createEvent(this.server_update_freq, (count, last) => {
       this.updateSelf();
     });
-    this.updateSelf();
     this.heartbeat.createEvent(this.flush_freq, (count, last) => {
       if (this.record_data) {
         this.writeBeeps();
         this.writeNodes();
       }
     })
-    this.heartbeat.createEvent(this.server_checkin_freq, (count, last) => {
-        this.serverCheckin();
-    });
     this.heartbeat.createEvent(this.gps_record_freq, (count, last) => {
       this.logGPS();
     });
-    this.heartbeat.createEvent(this.rotation_freq, (count, last) => {
-      this.record('rotating radio tag data file');
-      this.rotateDataFile(this.data_file_uri, this.base_data_filename).then((res) => {
-        this.record('rotating node file data');
-        this.rotateDataFile(this.node_file_uri, this.node_data_filename).then((res) => {
-          this.record('rotating gps data file');
-          this.rotateDataFile(this.gps_file_uri, this.gps_data_filename);
-        });
-      }).catch((err) => {
-        this.record('error rotating data file')
-        console.error(err);
-      });
-    });
-    this.heartbeat.createEvent(this.update_screen_freq, (count, last) => {
-      this.updateDisplay(false);
-    });
-    this.heartbeat.createEvent(this.upload_freq, (count, last) => {
-      this.uploadFiles();
-    });
-
   }
   
   startGpsClient() {
-
     this.gps_listener = new gpsd.Listener({
       port: 2947,
       hostname: 'localhost',
@@ -241,22 +174,6 @@ class BaseStation {
     this.gps_listener.watch();
   }
 
-  toggleModemLight() {
-    const cmd = spawn('python', ['/home/pi/modem_light.py']);
-    cmd.stderr.on('data', (err) => {
-      this.log('error toggling modem light', err.toString());
-    });
-    cmd.stdout.on('data', (data) => {
-      this.log(data.toString());
-    });
-    cmd.on('close', (code) => {
-      this.log('modem diagnostic light toggled')
-    });
-    cmd.on('error', (err) => {
-      this.log(err.toString());
-    })
-  }
-
   startModem() {
     const cmd = spawn('systemctl', ['start',  'modem.service']);
     this.record('starting modem service');
@@ -268,57 +185,6 @@ class BaseStation {
     });
     cmd.on('close', (code) => {
       this.record("modem done starting");
-    })
-  }
-
-  updateDisplay(welcome=false) {
-    if (this.updating_screen) {
-      this.log('screen update not finished - skipping update');
-      return;
-    }
-    this.updating_screen = true;
-    let view  = welcome ? 'welcome' : 'main';
-    let mode = this.gps_info.mode;
-    if (!mode) {
-      mode = 0;
-    }
-    if (mode < 0) {
-      mode = 0;
-    }
-    if (mode > 3) {
-      mode = 3;
-    }
-    let args =[
-      '/home/pi/ctt/eink-software/update_screen.py',
-      '--beeps',
-      this.beep_count_total,
-      '--nodes',
-      this.total_nodes.size,
-      '--gps',
-      mode,
-      '--signal',
-      0,
-      '--view',
-      view
-    ];
-    this.log(`updating ${view} display`);
-    const cmd = spawn('python', args, {
-			env: {
-				PYTHONPATH: '$PYTHONPATH:/home/pi/.local/lib/python2.7/site-packages'
-			}
-		});
-    cmd.on('close', (code) => {
-      this.log('finished updating screen');
-      this.updating_screen = false;
-    });
-		cmd.stderr.on('data', (data) =>{
-			console.log('display error');
-			console.log(data.toString());
-		});
-    cmd.on('error', (err) => {
-      console.log('error running command...');
-      console.log(line);
-      console.error(err);
     })
   }
 
@@ -341,110 +207,6 @@ class BaseStation {
     }
   }
 
-  uploadFiles() {
-    if (this.uploading) {
-      this.record('data upload still in progress, ignoring upload job');
-      return;
-    }
-    this.uploading = true;
-    this.uploadNext();
-  }
-
-  uploadNext() {
-    let dirname = path.join(this.base_log_dir, 'uploaded');
-    this.createDir(dirname);
-    this.createDir(path.join(this.base_log_dir, 'uploaded', 'ctt'));
-    this.createDir(path.join(this.base_log_dir, 'uploaded', 'sg'));
-    this.uploader.getFilesToUpload().then((res) => {
-      if (res.ctt.length > 0) {
-        this.current_upload_file = res.ctt.shift();
-        this.record('begin file upload', this.current_upload_file);
-        this.uploader.uploadCttFile(this.current_upload_file).then((data) => {
-          let basename = path.basename(this.current_upload_file);
-          let dest = path.join(dirname, 'ctt', basename);
-          fs.renameSync(this.current_upload_file, dest);
-          this.record('finished file upload', this.current_upload_file);
-          this.uploadNext();
-        }).catch((err) => {
-          // unable to upload file
-          this.record('error trying to upload file', this.current_upload_file);
-          console.error(err);
-          this.current_upload_file = null;
-          this.uploading = false;
-          return;
-        })
-
-      } else if (res.sg.length > 0) {
-        this.current_upload_file = res.sg.shift();
-        this.record('begin sg file upload', this.current_upload_file);
-        this.uploader.uploadSgFile(this.current_upload_file).then((data) => {
-          let basename = path.basename(this.current_upload_file);
-          let dest = path.join(dirname, 'sg', basename);
-          fs.renameSync(this.current_upload_file, dest);
-          this.record('finished file upload', this.current_upload_file);
-          this.uploadNext();
-        }).catch((err) => {
-          // unable to upload file
-          this.record('error trying to upload file', this.current_upload_file);
-          console.error(err);
-          this.current_upload_file = null;
-          this.uploading = false;
-          return;
-        })
-
-      } else {
-        // nothing to upload
-        this.uploading = false;
-        this.record('upload job finished');
-        return;
-      }
-    });
-  }
-
-  rotateDataFile(fileuri, new_basename) {
-    return new Promise((resolve, reject) => {
-      fs.stat(fileuri, (err, stats) => {
-        if (err) {
-          // file access error - doesn't exist / bad perms  nothing to rotate
-          this.record('no data file to rotate');
-          console.error(err);
-          resolve(false);
-          return;
-        }
-        let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
-        let newname = `${new_basename.replace('.csv','')}.${now}.csv`
-        // ensure rotation directory exists
-        this.createDir(path.join(this.base_log_dir, 'rotated')); 
-        this.rotated_uri = path.join(this.base_log_dir, 'rotated', newname);
-        fs.rename(fileuri, this.rotated_uri, (err) => {
-          if (err) {
-            this.record('error rotating data file', err);
-            reject(err);
-            return;
-          }
-          const inp = fs.createReadStream(this.rotated_uri);
-          const out = fs.createWriteStream(this.rotated_uri+'.gz');
-          const gzip = zlib.createGzip();
-          inp.pipe(gzip).pipe(out);
-          out.on('close', () => {
-            this.record('finished write stream, deleting original file:', this.rotated_uri);
-            fs.unlink(this.rotated_uri, (err) => {
-              if (err) {
-                this.record('error deleting rotated file', err);
-                reject(err);
-              } else {
-                resolve(true);
-              }
-            });
-          });
-          out.on('error', (err) => {
-            reject(err);
-          });
-        });
-      });
-    })
-  }
-
   record(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
     msgs.unshift(moment(new Date()).utc().format(this.date_format));
@@ -457,72 +219,6 @@ class BaseStation {
   log(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
     msgs.unshift(moment(new Date()).utc().format(this.date_format));
-  }
-
-  serverCheckin() {
-    try {
-      this.record('checking in to server');
-      this.compute_module.getDiskUsagePercent().then((usage) => {
-        let postData = {
-          modem: {
-          imei: this.imei,
-          sim: this.sim
-          },
-        }
-        postData.module = this.compute_module.data();
-        postData.module.disk_available = usage.available;
-        postData.module.disk_total = usage.total;
-        postData.gps = {
-          lat: this.gps_info.lat,
-          lng: this.gps_info.lon,
-          time: this.gps_info.time,
-        };
-        postData.beep_count = this.beep_count_since_checkin;
-        postData.unique_tags = this.unique_tags.size;
-        postData.node_count = this.nodes.size;
-        const payload = JSON.stringify(postData);
-        const options = {
-          hostname: this.hostname,
-          port: this.port,
-          path: this.server_checkin_url,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': payload.length
-          }
-        };
-        const req = http.request(options, (res) => {
-          res.setEncoding('utf8');
-          let buffer = '';
-          if (res.statusCode == 204) {
-            this.record('valid server checkin; reset beep count')
-            this.beep_count_since_checkin = 0;
-            this.unique_tags.clear();
-            this.nodes.clear();
-          } else {
-            console.error(`bad response code ${res.statusCode} at host:path ${this.hostname}:${this.server_checkin_url}`);
-            res.on('data', (data) => {
-              buffer += data.toString();
-            })
-            res.on('close', () => {
-              console.log(buffer);
-            });
-            res.on('end', (data) => {
-              console.log('ended');
-            });
-          }
-
-        });
-        req.on('error', (e) => {
-          this.record(`checkin error: ${e.message}`)
-        })
-        req.write(payload);
-        req.end();
-      });
-
-    } catch(err) {
-      this.record('unable to checkin to server', err)
-    }
   }
 
   updateSelf() {
@@ -714,6 +410,7 @@ class BaseStation {
   start() {
     this.record('starting radio receivers');
     Object.keys(this.radios).forEach((channel) => {
+      channel = parseInt(channel);
       let port = this.radios[channel];
       let beep_reader = new RadioReceiver({
         baud_rate: 115200,
@@ -721,37 +418,19 @@ class BaseStation {
         channel: channel
       });
       beep_reader.on('beep', (beep) => {
-        this.handle_beep(beep); 
+        console.log(beep);
       });
-      beep_reader.on('fw', (fw) => {
-        this.log('fw query', fw);
-        fw.msg_type = 'fw';
-        this.broadcast(JSON.stringify(fw));
-      });
-      beep_reader.on('node-alive', (node_alive) => {
-        this.handle_node_alive(node_alive);
-      });
-      beep_reader.on('node-beep', (node_beep) => {
-        this.handle_node_beep(node_beep);
-      });
-      beep_reader.on('response', (res) => {
-        this.record(`Radio ${res.channel} response: ${res.res}`)
-      });
-      beep_reader.start(1000);
       beep_reader.on('open', (info) => {
         this.record('opened radio on port', info.port_uri);
         this.active_radios[info.port_uri] = info;
-      });
-      beep_reader.on('log', (msg) => {
-        this.record('Beep Reader '+beep_reader.port_uri+' Log: '+msg);
       });
       beep_reader.on('close', (info) => {
         if (info.port_uri in Object.keys(this.active_radios)) {
         }
       });
+      beep_reader.start(1000);
       this.active_radios[channel] = beep_reader;
     });
-    this.serverCheckin();
   }
 
   handle_node_alive(node_alive) {

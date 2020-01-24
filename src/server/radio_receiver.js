@@ -3,158 +3,107 @@ const Readline = require('@serialport/parser-readline');
 const moment = require('moment');
 const EventEmitter = require('events');
 
+const CommandSet = {
+  'node': 'preset:node',
+}
+
+/* event emitter for a radio:   events
+  beep  - parsed JSON document from radio
+  raw   - radio output not JSON parsable 
+  open  - radio port opened
+  close - radio closed / radio error
+*/
 class RadioReceiver extends EventEmitter {
+  /**
+   * 
+   * @param {*} opts 
+   */
   constructor(opts) {
     super();
     this.port_uri = opts.port_uri;
     this.baud_rate = opts.baud_rate;
     this.channel = opts.channel;
-    this.restart_ms = 15000;
+    this.restart_ms = opts.restart_ms | 15000;
+    this.restart_on_close = opts.restart_on_close | true;
     this.serialport;
     this.parser;
-    this.active = false;
+    this.fw_version = null;
+    this.commands = [];
+    this.current_command = null;
   }
 
-  log(...msgs) {
-    msgs.unshift('port '+this.port_uri + ' log:');
-    msgs.unshift(moment(new Date()).format('YYYY-MM-DD HH:mm:ss'));
-    let msg = msgs.join(' ');
-    this.emit('log', msgs.join(' '));
-  }
-
+  /**
+   * 
+   * @param {*} data - write given data to the radio
+   */
   write(data) {
     console.log(`writing to radio ${this.channel}:  ${data.trim()}`)
-    this.serialport.write(data.trim()+'\r\n');
+    this.serialport.write(data.trim()+'\r\n', function(err) {
+      if (err) {
+        this.emit('error', `error writing to radio ${this.data()}; ${err.toString()}`);
+      }
+    });
   }
 
+  /**
+   * meta data about self
+   */
   data() {
     return {
       port_uri: this.port_uri,
       baud_rate: this.baud_rate,
       channel: this.channel,
-      active: this.active
     }
   }
 
+  /**
+   * start the radio
+   * 
+   * @param {*} delay start the radio after delay milliseconds
+   */
   start(delay=0) {
-    // start the radio after given delay in ms
     let self = this;
-    //this.parser= this.buildSerialInterface();
     setTimeout(() => {
       self.buildSerialInterface();
     }, delay);
   }
 
+  /**
+   * establish radio interface connection
+   * emit basic events
+   */
   buildSerialInterface() {
     let port = new SerialPort(this.port_uri, {
       baudRate: this.baud_rate
     });
     port.on('open', () => {
-      let msg = ['opened serial interface to lifetag', this.port_uri, '@', this.baud_rate, 'bps'].join(' ');
-      this.log(msg);
-      this.active = true;
       this.emit('open', this.data());
     });
     port.on('close', () => {
-      this.log('closed');
-      this.active = false;
       this.emit('close', this.data());
-      this.start(this.restart_ms);
-      // if the radio is closes - restart after given delay
+      if (this.restart_on_close == true) {
+        // restart the radio interface after given delay
+        this.start(this.restart_ms);
+      }
     });
     port.on('error', (err) => {
-      this.log('serial error', err);
-      this.active = false;
-      this.emit('close', this.data());
+      this.emit('error', `${err.toString()+this.data().toString()}`);
     });
     this.serialport = port;
     let parser = new Readline();
     parser.on('data', (line) => {
-      console.log(`rx ${this.channel}`, line);
       let raw_beep;
       let now = moment(new Date()).utc();
       try {
         raw_beep = JSON.parse(line);
         raw_beep.channel = this.channel;
         raw_beep.received_at = now;
+        this.emit('beep', raw_beep);
       } catch(err) {
-        // not a JSON document - assume this is an outgoing command
-        this.log('command issued', line);
+        // not a JSON document - emit the raw input
+        this.emit('raw', line);
         return;
       }
-      if (raw_beep.res) {
-        this.emit('response', raw_beep);
-        return;
-      }
-      if (raw_beep.firmware) {
-        raw_beep.channel = this.channel;
-        this.emit('fw', raw_beep);
-        return;
-      }
-      if (raw_beep.protocol) {
-        let beep, beep_type;
-        beep = {
-          received_at: now,
-          tag_at: now,
-          channel: this.channel,
-          tag_id: raw_beep.data.id,
-          rssi: raw_beep.meta.rssi,
-          node_id: null,
-          node_rssi: null
-        };
-
-        switch(raw_beep.meta.data_type) {
-          case 'coded_id': 
-            beep_type = 'beep';
-            break;
-          case 'node_coded_id':
-            beep_type = 'node-beep';
-            beep.node_id = raw_beep.meta.source.id;
-            beep.node_rssi = raw_beep.meta.rssi;
-            break;
-          case 'node_telemetry':
-            beep = raw_beep;
-            beep_type = 'node-telemetry';
-            break;
-          case 'node_health':
-            beep_type = 'node-alive';
-            beep = raw_beep;
-            break;
-          default:
-            beep = raw_beep;
-            beep_type = 'unknown'
-            console.log('unknown beep', raw_beep);
-            break;
-        }
-        this.emit(beep_type, beep);
-        return;
-      }
-
-      if (raw_beep.data) {
-        if (raw_beep.data.tag) {
-          this.emit('beep', {
-            received_at: now,
-            tag_at: now,
-            channel: this.channel,
-            tag_id: raw_beep.data.tag.id,
-            rssi: raw_beep.rssi,
-            error_bits: raw_beep.data.tag.error_bits,
-            node_id: null,
-            node_rssi: null
-          });
-          return;
-        }
-        if (raw_beep.data.node_alive) {
-          this.emit('node-alive', raw_beep)
-          return;
-        }
-        if (raw_beep.data.node_beep) {
-          this.emit('node-beep', raw_beep);
-          return;
-        }
-      }
-      //console.log('unknown line');
-      //console.log(raw_beep);
     });
     this.parser = port.pipe(parser);
   }
