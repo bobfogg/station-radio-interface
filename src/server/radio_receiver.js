@@ -3,10 +3,6 @@ const Readline = require('@serialport/parser-readline');
 const moment = require('moment');
 const EventEmitter = require('events');
 
-const CommandSet = {
-  'node': 'preset:node',
-}
-
 /* event emitter for a radio:   events
   beep  - parsed JSON document from radio
   raw   - radio output not JSON parsable 
