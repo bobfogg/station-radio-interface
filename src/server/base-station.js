@@ -2,6 +2,7 @@ import { RadioReceiver } from './radio-receiver';
 import { ComputeModule } from './compute-module';
 import { SensorSocketServer } from './web-socket-server';
 import {GpsClient } from './gps-client';
+import { StationConfig } from './station-config.js'
 
 const fs = require('fs');
 const heartbeats = require('heartbeats');
@@ -12,24 +13,10 @@ const { spawn }  = require('child_process');
 
 class BaseStation {
   constructor(opts) {
-    this.radios = {
-      1: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.2:1.0',
-      2: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.1:1.0',
-      3: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.2:1.0',
-      4: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.3:1.0',
-      5: '/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.4:1.0'
-    }
+    this.config = new StationConfig();
     this.active_radios = {};
-    this.base_log_dir = opts.base_log_dir
-
     this.beep_cache = [];
     this.node_cache = [];
-    this.flush_freq = opts.flush_data_secs;
-    this.date_format = 'YYYY-MM-DD HH:mm:ss';
-    this.hostname = 'account.celltracktech.com';
-    this.port = 443;
-    this.record_data = true;
-    this.gps_record_freq = opts.gps_record_freq;
     this.beep_count_since_checkin = 0;
     this.beep_count_total = 0;
     this.nodes = new Set();
@@ -40,18 +27,19 @@ class BaseStation {
   }
 
   init() {
+    let base_log_dir = this.config.data.record.base_log_directory;
     this.station_id = this.getId();
     this.base_data_filename = `CTT-${this.station_id}-raw-data.csv`;
-    this.data_file_uri = path.join(this.base_log_dir, this.base_data_filename);
+    this.data_file_uri = path.join(base_log_dir, this.base_data_filename);
 
     this.node_data_filename = `CTT-${this.station_id}-node-data.csv`;
-    this.node_file_uri = path.join(this.base_log_dir, this.node_data_filename);
+    this.node_file_uri = path.join(base_log_dir, this.node_data_filename);
 
     this.gps_data_filename = `CTT-${this.station_id}-gps.csv`;
-    this.gps_file_uri = path.join(this.base_log_dir, this.gps_data_filename);
+    this.gps_file_uri = path.join(base_log_dir, this.gps_data_filename);
 
     this.log_filename = `sensor-station-${this.station_id}.log`;
-    this.log_file_uri = path.join(this.base_log_dir, this.log_filename);
+    this.log_file_uri = path.join(base_log_dir, this.log_filename);
 
     this.gps_client.start();
     this.record('initializing base station');
@@ -126,15 +114,21 @@ class BaseStation {
 
   startTimers() {
     this.heartbeat = heartbeats.createHeart(1000);
-    this.heartbeat.createEvent(this.flush_freq, (count, last) => {
-      if (this.record_data) {
+    this.heartbeat.createEvent(this.config.data.record.flush_data_cache_seconds, (count, last) => {
+      if (this.record.enabled === true) {
         this.writeBeeps();
         this.writeNodes();
       }
-    })
-    this.heartbeat.createEvent(this.gps_record_freq, (count, last) => {
-      this.logGPS();
     });
+    if (this.config.data.gps.enabled === true) {
+      console.log('GPS enabled');
+      if (this.config.data.gps.record === true) {
+        console.log('GPS logging enabled');
+        this.heartbeat.createEvent(this.config.data.gps.seconds_between_fixes, (count, last) => {
+          this.logGPS();
+        });
+      }
+    }
   }
   
   getId() {
@@ -151,7 +145,7 @@ class BaseStation {
 
   record(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
-    msgs.unshift(moment(new Date()).utc().format(this.date_format));
+    msgs.unshift(moment(new Date()).utc().format(this.config.data.record.date_format));
     let line = msgs.join(' ') + '\r\n';
     fs.appendFile(this.log_file_uri, line, (err) => {
       if (err) throw err;
@@ -160,7 +154,7 @@ class BaseStation {
 
   log(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
-    msgs.unshift(moment(new Date()).utc().format(this.date_format));
+    msgs.unshift(moment(new Date()).utc().format(this.config.data.record.date_format));
   }
 
   logGPS() {
@@ -297,15 +291,15 @@ class BaseStation {
 
   start() {
     this.record('starting radio receivers');
-    Object.keys(this.radios).forEach((channel) => {
-      channel = parseInt(channel);
-      let port = this.radios[channel];
+    this.config.data.radios.forEach((radio) => {
+      console.log('processing', radio);
       let beep_reader = new RadioReceiver({
         baud_rate: 115200,
-        port_uri: port,
-        channel: channel
+        port_uri: radio.path,
+        channel: radio.channel 
       });
       beep_reader.on('beep', (beep) => {
+        console.log(beep);
       });
       beep_reader.on('open', (info) => {
         this.record('opened radio on port', info.port_uri);
@@ -316,7 +310,7 @@ class BaseStation {
         }
       });
       beep_reader.start(1000);
-      this.active_radios[channel] = beep_reader;
+      this.active_radios[radio.channel] = beep_reader;
     });
   }
 
