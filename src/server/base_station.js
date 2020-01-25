@@ -1,12 +1,13 @@
-import { RadioReceiver } from './radio_receiver';
+import { RadioReceiver } from './radio-receiver';
 import { ComputeModule } from './compute-module';
 import { SensorSocketServer } from './web-socket-server';
+import {GpsClient } from './gps-client';
+
 const fs = require('fs');
 const heartbeats = require('heartbeats');
 const moment = require('moment');
 const http = require('http');
 const path = require('path');
-const gpsd = require('node-gpsd');
 const { spawn }  = require('child_process');
 
 class BaseStation {
@@ -20,20 +21,14 @@ class BaseStation {
     }
     this.active_radios = {};
     this.base_log_dir = opts.base_log_dir
-    this.toggle_modem_light_freq = 60 * 2;
-    this.server_update_freq = 60*60*24;
 
-    this.update_screen_freq = opts.update_screen_freq;
     this.beep_cache = [];
     this.node_cache = [];
     this.flush_freq = opts.flush_data_secs;
-    this.gps_rotation_freq = opts.gps_rotation_freq;
     this.date_format = 'YYYY-MM-DD HH:mm:ss';
     this.hostname = 'account.celltracktech.com';
     this.port = 443;
-    this.server_update_url = '/station/v1/update/';
     this.record_data = true;
-    this.write_errors = opts.write_errors;
     this.gps_record_freq = opts.gps_record_freq;
     this.beep_count_since_checkin = 0;
     this.beep_count_total = 0;
@@ -41,14 +36,7 @@ class BaseStation {
     this.total_nodes = new Set();
     this.unique_tags = new Set();
     this.compute_module = new ComputeModule();
-
-    this.gps_info = {
-      msg_type: 'gps',
-      time: null,
-      lat: null,
-      lon: null
-    };
-
+    this.gps_client = new GpsClient();
   }
 
   init() {
@@ -65,12 +53,10 @@ class BaseStation {
     this.log_filename = `sensor-station-${this.station_id}.log`;
     this.log_file_uri = path.join(this.base_log_dir, this.log_filename);
 
-    this.updateSelf();
+    this.gps_client.start();
     this.record('initializing base station');
-    this.startModem();
     this.startWebsocketServer();
     this.startTimers();
-    this.startGpsClient();
     this.start();
   }
 
@@ -140,9 +126,6 @@ class BaseStation {
 
   startTimers() {
     this.heartbeat = heartbeats.createHeart(1000);
-    this.heartbeat.createEvent(this.server_update_freq, (count, last) => {
-      this.updateSelf();
-    });
     this.heartbeat.createEvent(this.flush_freq, (count, last) => {
       if (this.record_data) {
         this.writeBeeps();
@@ -154,47 +137,6 @@ class BaseStation {
     });
   }
   
-  startGpsClient() {
-    this.gps_listener = new gpsd.Listener({
-      port: 2947,
-      hostname: 'localhost',
-      parse: true
-    });
-    this.gps_listener.connect(() => {
-      this.record('listening to GPSD');
-    });
-    this.gps_listener.on('TPV', (data) => {
-      data.system_time = new Date();
-      Object.assign(this.gps_info, data);
-      this.sensor_socket_server.broadcast(JSON.stringify(this.gps_info));
-    });
-    this.gps_listener.on('SKY', (data) => {
-      Object.assign(this.gps_info, data);
-    })
-    this.gps_listener.watch();
-  }
-
-  startModem() {
-    const cmd = spawn('systemctl', ['start',  'modem.service']);
-    this.record('starting modem service');
-    cmd.stderr.on('data', (err) => {
-      this.record('error starting modem service', err.toString());
-    });
-    cmd.stdout.on('data', (data) => {
-      this.record(data);
-    });
-    cmd.on('close', (code) => {
-      this.record("modem done starting");
-    })
-  }
-
-  createDir(dirname) {
-    if (!fs.existsSync(dirname)) {
-      this.record('creating directory', dirname);
-      fs.mkdirSync(dirname);
-    }
-  }
-
   getId() {
     let contents = fs.readFileSync('/etc/station-id');
     let meta = JSON.parse(contents);
@@ -221,66 +163,6 @@ class BaseStation {
     msgs.unshift(moment(new Date()).utc().format(this.date_format));
   }
 
-  updateSelf() {
-    try {
-      this.record('checking for system update');
-      let postData = {
-        modem: {
-        imei: this.imei,
-        sim: this.sim
-        }
-      }
-      const payload = JSON.stringify(postData);
-      const options = {
-        hostname: this.hostname,
-        port: this.port,
-        path: this.server_update_url,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': payload.length
-        }
-      };
-      const req = http.request(options, (res) => {
-        let buffer = '';
-        res.setEncoding('utf8');
-        if (res.statusCode == 200) {
-          this.record('rx server update response')
-        } 
-        res.on('data', (data) => {
-          buffer += data.toString();
-        })
-        res.on('close', () => {
-          console.log('done');
-        });
-        res.on('end', (data) => {
-          if (buffer.length > 0) {
-            this.record('server delivered an update file');
-            fs.writeFile('/tmp/server-update.sh', buffer, (err) => {
-              const cmd = spawn('/bin/bash', ['/tmp/server-update.sh']);
-              cmd.on('close', (code) => {
-                this.record('finished running update script with code', code.toString());
-              });
-              cmd.stderr.on('data', (data) => {
-                this.log(data.toString());
-              });
-              cmd.stdout.on('data', (data) => {
-                this.log('running', data.toString());
-              })
-            })
-          }
-        });
-      });
-      req.on('error', (e) => {
-        this.record(`server update error: ${e.message}`)
-      })
-      req.write(payload);
-      req.end();
-    } catch(err) {
-      this.record('unable to check for system update', err.toString())
-    }
-  }
-
   logGPS() {
     return new Promise((resolve, reject) => {
       let lines = [];
@@ -292,14 +174,26 @@ class BaseStation {
         'altitude',
         'quality'
       ]
-      let line = [
-        moment(new Date()).toISOString(),
-        this.gps_info.time, 
-        this.gps_info.lat, 
-        this.gps_info.lon,
-        this.gps_info.alt,
-        this.gps_info.mode
-      ].join(',');
+      let line;
+      let now = moment(new Date()).toISOString()
+      if (this.gps_client.latest_gps_fix) {
+        line = [
+          now,
+          this.gps_client.gps_state.time, 
+          this.gps_client.gps_state.lat, 
+          this.gps_client.gps_state.lon,
+          this.gps_client.gps_state.alt,
+          this.gps_client.gps_state.mode
+        ].join(',');
+      } else {
+        line = [
+          now,
+          '',
+          '',
+          '',
+          '0',
+        ].join(',');
+      }
       lines.push(line);
       if (!fs.existsSync(this.gps_file_uri)) {
         lines.unshift(header);
@@ -366,9 +260,6 @@ class BaseStation {
         'TagRSSI',
         'NodeId'
       ]
-      if (this.write_errors == true) {
-        header.push('ErrorBits');
-      }
       while (this.beep_cache.length > 0) {
         n += 1;
         beep = this.beep_cache.shift();
@@ -379,9 +270,6 @@ class BaseStation {
           beep.tag_rssi,
           beep.node_id
         ];
-        if (this.write_errors == true) {
-          vals.push(beep.error_bits);
-        }
         lines.push(vals.join(','));
       }
       if (lines.length > 0) {
@@ -418,7 +306,6 @@ class BaseStation {
         channel: channel
       });
       beep_reader.on('beep', (beep) => {
-        console.log(beep);
       });
       beep_reader.on('open', (info) => {
         this.record('opened radio on port', info.port_uri);
