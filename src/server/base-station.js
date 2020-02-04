@@ -3,6 +3,7 @@ import { SensorSocketServer } from './web-socket-server';
 import {GpsClient } from './gps-client';
 import { StationConfig } from './station-config';
 import { Logger } from './data/logger';
+import { GpsFormatter } from './data/gps-formatter';
 
 const fs = require('fs');
 const heartbeats = require('heartbeats');
@@ -38,16 +39,11 @@ class BaseStation {
         let base_log_dir = this.config.data.record.base_log_directory;
         this.gps_logger = new Logger({
           id: this.station_id,
-          header: [
-            'recorded at',
-            'gps at',
-            'latitude',
-            'longitude',
-            'altitude',
-            'quality'
-          ],
           base_path: base_log_dir,
-          suffix: 'gps-data'
+          suffix: 'gps-data',
+          formatter: new GpsFormatter({
+            date_format: this.date_format
+          })
         });
         this.base_data_filename = `CTT-${this.station_id}-raw-data.csv`;
         this.data_file_uri = path.join(base_log_dir, this.base_data_filename);
@@ -135,32 +131,7 @@ class BaseStation {
     if (this.config.data.gps.enabled === true) {
       if (this.config.data.gps.record === true) {
         this.heartbeat.createEvent(this.config.data.gps.seconds_between_fixes, (count, last) => {
-          let line;
-
-          let now = moment(new Date()).format(this.date_format);
-          if (this.gps_client.latest_gps_fix) {
-            // we have a fix
-            let fix = this.gps_client.latest_gps_fix;
-            line = [
-              now,
-              moment(fix.time).format(this.date_format),
-              fix.lat,
-              fix.lon,
-              fix.alt,
-              fix.mode
-            ]
-          } else {
-            // no fix - add recorded at
-            line = [
-              now,
-              null,
-              null,
-              null,
-              null,
-              null
-            ]
-          }
-          this.gps_logger.addRecord(line);
+          this.gps_logger.addRecord(this.gps_client.latest_gps_fix);
           this.gps_logger.writeCacheToDisk();
         });
       }
