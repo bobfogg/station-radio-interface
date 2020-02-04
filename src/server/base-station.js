@@ -1,7 +1,8 @@
 import { RadioReceiver } from './radio-receiver';
 import { SensorSocketServer } from './web-socket-server';
 import {GpsClient } from './gps-client';
-import { StationConfig } from './station-config.js'
+import { StationConfig } from './station-config';
+import { Logger } from './data/logger';
 
 const fs = require('fs');
 const heartbeats = require('heartbeats');
@@ -14,38 +15,45 @@ class BaseStation {
   constructor(config_filename) {
     this.config = new StationConfig(config_filename);
     this.active_radios = {};
-    this.beep_cache = [];
-    this.node_cache = [];
-    this.beep_count_since_checkin = 0;
-    this.beep_count_total = 0;
-    this.nodes = new Set();
-    this.total_nodes = new Set();
-    this.unique_tags = new Set();
     this.gps_client = new GpsClient({
       count_gps_records: 10
     });
+    this.station_id;
+    this.date_format;
+    this.gps_logger;
   }
 
   init() {
     this.config.load().then((data) => {
-      console.log('loaded config...', data);
+      // loaded the config - now save it to disk
       this.config.save().catch((err) => {
         // there was an error saving this config file ... cannot handle persistent storage
         console.error(err);
         this.record('error saving config to disk');
       }).then(() => {
 
+        this.date_format = this.config.data.record.date_format;
+        this.station_id = this.getId();
         console.log(this.config.data.record);
         let base_log_dir = this.config.data.record.base_log_directory;
-        this.station_id = this.getId();
+        this.gps_logger = new Logger({
+          id: this.station_id,
+          header: [
+            'recorded at',
+            'gps at',
+            'latitude',
+            'longitude',
+            'altitude',
+            'quality'
+          ],
+          base_path: base_log_dir,
+          suffix: 'gps-data'
+        });
         this.base_data_filename = `CTT-${this.station_id}-raw-data.csv`;
         this.data_file_uri = path.join(base_log_dir, this.base_data_filename);
 
         this.node_data_filename = `CTT-${this.station_id}-node-data.csv`;
         this.node_file_uri = path.join(base_log_dir, this.node_data_filename);
-
-        this.gps_data_filename = `CTT-${this.station_id}-gps.csv`;
-        this.gps_file_uri = path.join(base_log_dir, this.gps_data_filename);
 
         this.log_filename = `sensor-station-${this.station_id}.log`;
         this.log_file_uri = path.join(base_log_dir, this.log_filename);
@@ -125,11 +133,35 @@ class BaseStation {
       }
     });
     if (this.config.data.gps.enabled === true) {
-      console.log('GPS enabled');
       if (this.config.data.gps.record === true) {
-        console.log('GPS logging enabled');
         this.heartbeat.createEvent(this.config.data.gps.seconds_between_fixes, (count, last) => {
-          this.logGPS();
+          let line;
+
+          let now = moment(new Date()).format(this.date_format);
+          if (this.gps_client.latest_gps_fix) {
+            // we have a fix
+            let fix = this.gps_client.latest_gps_fix;
+            line = [
+              now,
+              moment(fix.time).format(this.date_format),
+              fix.lat,
+              fix.lon,
+              fix.alt,
+              fix.mode
+            ]
+          } else {
+            // no fix - add recorded at
+            line = [
+              now,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          }
+          this.gps_logger.addRecord(line);
+          this.gps_logger.writeCacheToDisk();
         });
       }
     }
@@ -149,7 +181,7 @@ class BaseStation {
 
   record(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
-    msgs.unshift(moment(new Date()).utc().format(this.config.data.record.date_format));
+    msgs.unshift(moment(new Date()).utc().format(this.date_format));
     let line = msgs.join(' ') + '\r\n';
     fs.appendFile(this.log_file_uri, line, (err) => {
       if (err) throw err;
@@ -158,132 +190,7 @@ class BaseStation {
 
   log(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
-    msgs.unshift(moment(new Date()).utc().format(this.config.data.record.date_format));
-  }
-
-  logGPS() {
-    return new Promise((resolve, reject) => {
-      let lines = [];
-      let header = [
-        'recorded at',
-        'gps at',
-        'latitude',
-        'longitude',
-        'altitude',
-        'quality'
-      ]
-      let line;
-      let now = moment(new Date()).format(this.config.data.record.date_format);
-      if (this.gps_client.latest_gps_fix) {
-        line = [
-          now,
-          moment(this.gps_client.latest_gps_fix.time).format(this.config.data.record.date_format), 
-          this.gps_client.latest_gps_fix.lat, 
-          this.gps_client.latest_gps_fix.lon,
-          this.gps_client.latest_gps_fix.alt,
-          this.gps_client.latest_gps_fix.mode
-        ].join(',');
-      } else {
-        line = [
-          now,
-          '',
-          '',
-          '',
-          '0',
-        ].join(',');
-      }
-      lines.push(line);
-      if (!fs.existsSync(this.gps_file_uri)) {
-        lines.unshift(header);
-      }
-      console.log('writing lines', lines);
-      fs.appendFile(this.gps_file_uri, lines.join('\r\n')+'\r\n', (err) => {
-        if (err) {
-          reject(err);
-        }
-        resolve();
-      })
-    })
-  }
-
-  writeNodes() {
-    return new Promise((resolve, reject) => {
-      let vals = [], lines=[], node_alive, info;
-      let header = [
-        'Time',
-        'RadioId',
-        'NodeId',
-        'NodeRSSI',
-        'Battery',
-        'Celsius',
-      ];
-      let n = 0;
-
-      while (this.node_cache.length > 0) {
-        n += 1;
-        node_alive = this.node_cache.shift();
-        vals = [
-          node_alive.received_at.toISOString(),
-          node_alive.channel,
-          node_alive.node_id,
-          node_alive.rssi,
-          node_alive.battery,
-          node_alive.celsius
-        ];
-        lines.push(vals.join(','));
-      }
-      if (lines.length > 0) {
-        // data to write to file - verify that the ile exists
-        if (!fs.existsSync(this.node_file_uri)) {
-          // add header line if the file does not exists
-          lines.unshift(header.join(','));
-        }
-        fs.appendFile(this.node_file_uri, lines.join('\r\n')+'\r\n', (err) =>{
-          if (err) {
-            reject(err);
-          }
-        });
-      }
-      this.record(`flush node alive cache: ${n} messages`);
-    });
-  }
-
-  writeBeeps() {
-    return new Promise((resolve, reject) => {
-      let vals = [], lines=[], beep;
-      let n = 0;
-      let header = [
-        'Time',
-        'RadioId',
-        'TagId',
-        'TagRSSI',
-        'NodeId'
-      ]
-      while (this.beep_cache.length > 0) {
-        n += 1;
-        beep = this.beep_cache.shift();
-        vals = [
-          beep.received_at.toISOString(),
-          beep.channel,
-          beep.tag_id,
-          beep.tag_rssi,
-          beep.node_id
-        ];
-        lines.push(vals.join(','));
-      }
-      if (lines.length > 0) {
-        if (!fs.existsSync(this.data_file_uri)) {
-          lines.unshift(header.join(','));
-        }
-        fs.appendFile(this.data_file_uri, lines.join('\r\n')+'\r\n', (err) => {
-          if (err) {
-            reject(err);
-          }
-          resolve()
-        });
-      }
-      this.record(`flush beep cache: ${n} beeps`);
-    })
+    msgs.unshift(moment(new Date()).utc().format(this.date_format));
   }
 
   getRadioReport() {
@@ -317,78 +224,6 @@ class BaseStation {
       beep_reader.start(1000);
       this.active_radios[radio.channel] = beep_reader;
     });
-  }
-
-  handle_node_alive(node_alive) {
-    let info = node_alive.data.node_alive;
-    let msg = `radio: ${node_alive.channel}; node ${info.id}; firmware: ${info.firmware}; battery: ${info.battery_mv/1000}V;`
-    node_alive.msg_type='node-alive';
-    this.nodes.add(info.id);
-		this.total_nodes.add(info.id);
-
-    this.node_cache.push({
-      received_at: node_alive.received_at,
-      channel: node_alive.channel,
-      node_id: info.id,
-      firmware: info.firmware,
-      battery: info.battery_mv / 1000,
-      celsius: info.celsius,
-      rssi: node_alive.rssi,
-      avg_cca: info.avg_cca
-    });
-    this.sensor_socket_server.broadcast(JSON.stringify({
-      msg_type: 'node-alive',
-      received_at: moment(new Date()).utc(),
-      channel: node_alive.channel,
-      node_id: info.id,
-      firmware: info.firmware,
-      battery: info.battery_mv/1000,
-      rssi: node_alive.rssi,
-    }));
-  }
-
-  handle_node_beep(node_beep) {
-    let now = moment(new Date()).utc();
-    let node_info = node_beep.data.node_beep;
-    let tag_info = node_beep.data.node_tag;
-    let then = now.subtract(node_info.offset_ms, 'ms');
-    this.beep_cache.push({
-      received_at: then,
-      channel: node_beep.channel,
-      tag_id: tag_info.tag_id,
-      tag_rssi: node_info.tag_rssi,
-      node_id: node_info.id,
-      error_bits: 0
-    })
-    this.sensor_socket_server.broadcast(JSON.stringify({
-      msg_type: 'beep',
-      received_at: now,
-      tag_at: then,
-      channel: node_beep.channel,
-      tag_id: tag_info.tag_id,
-      rssi: node_info.tag_rssi,
-      error_bits: 0,
-      node_id: node_info.id,
-      node_rssi: node_beep.rssi
-    }));
-    this.nodes.add(node_info.id);
-		this.total_nodes.add(node_info.id);
-  }
-
-  handle_beep(beep) {
-    this.beep_cache.push({
-      received_at: beep.received_at,
-      channel: beep.channel,
-      tag_id: beep.tag_id,
-      tag_rssi: beep.rssi,
-      node_id: beep.node_id,
-      error_bits: beep.error_bits
-    });
-    this.beep_count_since_checkin += 1;
-    this.beep_count_total += 1;
-    beep.msg_type = 'beep';
-    this.sensor_socket_server.broadcast(JSON.stringify(beep));
-    this.unique_tags.add(beep.tag_id);
   }
 }
 
