@@ -5,13 +5,23 @@ const EventEmitter = require('events');
  * maintain a connection to gpsd daemon and maintain most recent gps info
  * merge sky satellites with gps data into gps_sate object
  */
-class GpsClient {
-    constructor() {
+class GpsClient extends EventEmitter{
+    constructor(opts) {
+        super();
         this.latest_gps_fix;
         this.latest_sky_view;
         this.latest_fix;
+        this.recent_gps_records = [];
+        this.count_gps_records = opts.count_gps_records;
 
         this.buildGpsClient();
+    }
+
+    addGpsRecord(record) {
+        this.recent_gps_records.push(record);
+        if (this.recent_gps_records.length > this.count_gps_records) {
+            this.recent_gps_records.shift();
+        }
     }
 
     buildGpsClient() {
@@ -45,6 +55,7 @@ class GpsClient {
                 case 3:
                     // 3d fix
                     this.emit('3d-fix', data);
+                    this.recent_gps_records.push(data);
                     break;
                 default:
                     break;

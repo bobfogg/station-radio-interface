@@ -1,5 +1,4 @@
 import { RadioReceiver } from './radio-receiver';
-import { ComputeModule } from './compute-module';
 import { SensorSocketServer } from './web-socket-server';
 import {GpsClient } from './gps-client';
 import { StationConfig } from './station-config.js'
@@ -12,8 +11,8 @@ const path = require('path');
 const { spawn }  = require('child_process');
 
 class BaseStation {
-  constructor(opts) {
-    this.config = new StationConfig();
+  constructor(config_filename) {
+    this.config = new StationConfig(config_filename);
     this.active_radios = {};
     this.beep_cache = [];
     this.node_cache = [];
@@ -22,30 +21,43 @@ class BaseStation {
     this.nodes = new Set();
     this.total_nodes = new Set();
     this.unique_tags = new Set();
-    this.compute_module = new ComputeModule();
-    this.gps_client = new GpsClient();
+    this.gps_client = new GpsClient({
+      count_gps_records: 10
+    });
   }
 
   init() {
-    let base_log_dir = this.config.data.record.base_log_directory;
-    this.station_id = this.getId();
-    this.base_data_filename = `CTT-${this.station_id}-raw-data.csv`;
-    this.data_file_uri = path.join(base_log_dir, this.base_data_filename);
+    this.config.load().then((data) => {
+      console.log('loaded config...', data);
+      this.config.save().catch((err) => {
+        // there was an error saving this config file ... cannot handle persistent storage
+        console.error(err);
+        this.record('error saving config to disk');
+      }).then(() => {
 
-    this.node_data_filename = `CTT-${this.station_id}-node-data.csv`;
-    this.node_file_uri = path.join(base_log_dir, this.node_data_filename);
+        console.log(this.config.data.record);
+        let base_log_dir = this.config.data.record.base_log_directory;
+        this.station_id = this.getId();
+        this.base_data_filename = `CTT-${this.station_id}-raw-data.csv`;
+        this.data_file_uri = path.join(base_log_dir, this.base_data_filename);
 
-    this.gps_data_filename = `CTT-${this.station_id}-gps.csv`;
-    this.gps_file_uri = path.join(base_log_dir, this.gps_data_filename);
+        this.node_data_filename = `CTT-${this.station_id}-node-data.csv`;
+        this.node_file_uri = path.join(base_log_dir, this.node_data_filename);
 
-    this.log_filename = `sensor-station-${this.station_id}.log`;
-    this.log_file_uri = path.join(base_log_dir, this.log_filename);
+        this.gps_data_filename = `CTT-${this.station_id}-gps.csv`;
+        this.gps_file_uri = path.join(base_log_dir, this.gps_data_filename);
 
-    this.gps_client.start();
-    this.record('initializing base station');
-    this.startWebsocketServer();
-    this.startTimers();
-    this.start();
+        this.log_filename = `sensor-station-${this.station_id}.log`;
+        this.log_file_uri = path.join(base_log_dir, this.log_filename);
+
+        this.gps_client.start();
+        this.record('initializing base station');
+        this.startWebsocketServer();
+        this.startTimers();
+        this.start();
+      });
+    });
+
   }
 
   startWebsocketServer() {
@@ -55,14 +67,6 @@ class BaseStation {
     this.sensor_socket_server.on('cmd', (cmd) => {
       let line;
       switch (cmd.cmd) {
-        case('about'):
-        let info = new ComputeModule().data();
-        info.station_id = this.station_id;
-        this.broadcast(JSON.stringify({
-          msg_type: 'about',
-          data: info
-        }));
-        break;
         case('save_radio'):
         Object.keys(this.active_radios).forEach((channel) => {
           this.record(`saving config for radio ${channel}`);
@@ -169,15 +173,15 @@ class BaseStation {
         'quality'
       ]
       let line;
-      let now = moment(new Date()).toISOString()
+      let now = moment(new Date()).format(this.config.data.record.date_format);
       if (this.gps_client.latest_gps_fix) {
         line = [
           now,
-          this.gps_client.gps_state.time, 
-          this.gps_client.gps_state.lat, 
-          this.gps_client.gps_state.lon,
-          this.gps_client.gps_state.alt,
-          this.gps_client.gps_state.mode
+          moment(this.gps_client.latest_gps_fix.time).format(this.config.data.record.date_format), 
+          this.gps_client.latest_gps_fix.lat, 
+          this.gps_client.latest_gps_fix.lon,
+          this.gps_client.latest_gps_fix.alt,
+          this.gps_client.latest_gps_fix.mode
         ].join(',');
       } else {
         line = [
@@ -192,6 +196,7 @@ class BaseStation {
       if (!fs.existsSync(this.gps_file_uri)) {
         lines.unshift(header);
       }
+      console.log('writing lines', lines);
       fs.appendFile(this.gps_file_uri, lines.join('\r\n')+'\r\n', (err) => {
         if (err) {
           reject(err);

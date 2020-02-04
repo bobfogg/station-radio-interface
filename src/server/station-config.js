@@ -1,13 +1,11 @@
 const fs = require('fs');
+const EventEmitter = require('events');
 import default_config from './default-config';
 
 class StationConfig {
     constructor(filename) {
-        if (filename) {
-            this.data = this.load(filename);
-        } else {
-            this.data = this.loadDefaultConfig();
-        }
+        this.filename = filename;
+        this.data;
     }
 
     pretty() {
@@ -16,14 +14,21 @@ class StationConfig {
 
     load(filename) {
         return new Promise((resolve, reject) => {
-            let contents = fs.readFileSync(filename);
-            let data;
-            try {
-                data = JSON.parse(contents);
-                resolve(data);
-            } catch(err) {
-                reject(err);
-            }
+            fs.readFile(filename ? filename : this.filename, (err, contents) => {
+                if (err) {
+                    /* cannot read config file from location */
+                    resolve(this.loadDefaultConfig());
+                }
+                try {
+                    this.data = JSON.parse(contents);
+                    resolve(this.data);
+                } catch(err) {
+                    /* cannot read JSON */
+                    this.data = this.loadDefaultConfig();
+                    resolve(this.data);
+                }
+
+            });
         });
     }
 
@@ -31,16 +36,12 @@ class StationConfig {
         return default_config;
     }
 
-    write(filename) {
+    save(filename) {
         return new Promise((resolve, reject) => {
-            let logfilename = this.filename;
-            if (filename) {
-                // if provided - write to filename
-                logfilename = filename;
-            }
             let contents = JSON.stringify(this.data, null, 2);
-            fs.writeFile(filename, contents, (err) => {
+            fs.writeFile(filename ? filename : this.filename, contents, (err) => {
                 if (err) {
+                    console.error(err);
                     reject(err);
                     return;
                 }
