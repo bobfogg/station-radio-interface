@@ -1,6 +1,6 @@
 import { RadioReceiver } from './radio-receiver';
 import { SensorSocketServer } from './web-socket-server';
-import {GpsClient } from './gps-client';
+import { GpsClient } from './gps-client';
 import { StationConfig } from './station-config';
 import { Logger } from './data/logger';
 import { GpsFormatter } from './data/gps-formatter';
@@ -8,16 +8,14 @@ import { GpsFormatter } from './data/gps-formatter';
 const fs = require('fs');
 const heartbeats = require('heartbeats');
 const moment = require('moment');
-const http = require('http');
 const path = require('path');
-const { spawn }  = require('child_process');
 
 class BaseStation {
   constructor(config_filename) {
     this.config = new StationConfig(config_filename);
     this.active_radios = {};
     this.gps_client = new GpsClient({
-      count_gps_records: 10
+      max_gps_records: 10
     });
     this.station_id;
     this.date_format;
@@ -173,11 +171,14 @@ class BaseStation {
         channel: radio.channel 
       });
       beep_reader.on('beep', (beep) => {
-        //console.log(beep);
+        console.log(beep);
       });
       beep_reader.on('open', (info) => {
         this.record('opened radio on port', info.port_uri);
         this.active_radios[info.port_uri] = info;
+        radio.config.forEach((cmd) => {
+          beep_reader.write(cmd);
+        });
       });
       beep_reader.on('close', (info) => {
         if (info.port_uri in Object.keys(this.active_radios)) {

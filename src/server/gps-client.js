@@ -12,14 +12,31 @@ class GpsClient extends EventEmitter{
         this.latest_sky_view;
         this.latest_fix;
         this.recent_gps_records = [];
-        this.count_gps_records = opts.count_gps_records;
+        this.max_gps_records = opts.max_gps_records;
 
         this.buildGpsClient();
     }
 
+    meanFix() {
+        let mean_lat=0, mean_lng=0;
+        if (this.recent_gps_records.length < 1) {
+            return; 
+        }
+        this.recent_gps_records.forEach((record) => {
+            mean_lat += record.lat;
+            mean_lng += record.lon;
+        });
+        mean_lat = mean_lat / this.recent_gps_records.length;
+        mean_lng = mean_lng / this.recent_gps_records.length;
+        return {
+            lat: mean_lat.toFixed(6),
+            lng: mean_lng.toFixed(6)
+        }
+    }
+
     addGpsRecord(record) {
         this.recent_gps_records.push(record);
-        if (this.recent_gps_records.length > this.count_gps_records) {
+        if (this.recent_gps_records.length > this.max_gps_records) {
             this.recent_gps_records.shift();
         }
     }
@@ -55,7 +72,7 @@ class GpsClient extends EventEmitter{
                 case 3:
                     // 3d fix
                     this.emit('3d-fix', data);
-                    this.recent_gps_records.push(data);
+                    this.addGpsRecord(data);
                     break;
                 default:
                     break;
@@ -73,7 +90,6 @@ class GpsClient extends EventEmitter{
     }
 
     start() {
-        console.log('connecting');
         this.gps_listener.connect(() => {});
         this.gps_listener.watch();
     }
