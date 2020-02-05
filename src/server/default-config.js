@@ -35,6 +35,10 @@ export default {
         ],
         record: true
     }],
+    http: {
+        websocket_port: 8001,
+        flush_websocket_messages_seconds: 1
+    },
     record: {
         enabled: true,
         date_format: "YYYY-MM-DD HH:mm:ss",

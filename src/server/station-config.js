@@ -5,6 +5,7 @@ import default_config from './default-config';
 class StationConfig {
     constructor(filename) {
         this.filename = filename;
+        this.default_config = default_config;
         this.data;
     }
 
@@ -33,7 +34,7 @@ class StationConfig {
     }
 
     loadDefaultConfig() {
-        return default_config;
+        return this.default_config;
     }
 
     save(filename) {
