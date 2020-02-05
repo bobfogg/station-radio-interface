@@ -44,7 +44,7 @@ export default {
         date_format: "YYYY-MM-DD HH:mm:ss",
         flush_data_cache_seconds: 30,
         base_log_directory: "/data",
-        mobile: true
+        mobile: false
     },
     gps: {
         enabled: true,
