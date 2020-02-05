@@ -2,8 +2,8 @@ const path = require('path');
 const fs = require('fs');
 
 /**
- * base logger class is intended receive data records
- * and write to disk on a regular interval
+ * generic logger class is intended receive data records, buffer to cache
+ * and write to disk 
  */
 class Logger {
   /**
@@ -38,7 +38,6 @@ class Logger {
    * @param {record} record to add to cache - in final write format
    */
   addRecord(record) {
-    console.log('adding record to logger', record);
     this.record_cache.push(this.formatter.formatRecord(record));
   }
 
@@ -46,7 +45,6 @@ class Logger {
    * write cache to disk
    */
   writeCacheToDisk() {
-    console.log('writing cache to disk', this.fileuri);
     return new Promise((resolve, reject) => {
       let record, lines=[];
       while (this.record_cache.length > 0) {

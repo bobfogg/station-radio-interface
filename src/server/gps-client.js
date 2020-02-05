@@ -74,9 +74,7 @@ class GpsClient extends EventEmitter{
 
     start() {
         console.log('connecting');
-        this.gps_listener.connect(() => {
-            console.log('connected');
-        });
+        this.gps_listener.connect(() => {});
         this.gps_listener.watch();
     }
 
