@@ -2,12 +2,12 @@
   "name": "station-radio-interface",
   "version": "2.0.0",
   "description": "read data from radio serial ports / write to disk",
-  "main": "index.js",
+  "main": "lib/index.js",
   "scripts": {
-    "dev": "npm run babel && node lib/index.js",
     "start": "node lib/index.js",
-    "build": "npm run babel",
+    "compile": "babel src -d lib --source-maps --watch",
     "babel": "babel src -d lib",
+    "dev": "node --inspect lib/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
