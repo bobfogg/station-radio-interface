@@ -38,7 +38,10 @@ class Logger {
    * @param {record} record to add to cache - in final write format
    */
   addRecord(record) {
-    this.record_cache.push(this.formatter.formatRecord(record));
+    let line = this.formatter.formatRecord(record);
+    if (line) {
+      this.record_cache.push(line);
+    }
   }
 
   /**

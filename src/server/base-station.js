@@ -1,9 +1,10 @@
 import { RadioReceiver } from './radio-receiver';
-import { SensorSocketServer } from './web-socket-server';
+import { SensorSocketServer } from './http/web-socket-server';
 import { GpsClient } from './gps-client';
 import { StationConfig } from './station-config';
 import { Logger } from './data/logger';
 import { GpsFormatter } from './data/gps-formatter';
+import { BeepFormatter } from './data/beep-formatter';
 
 const fs = require('fs');
 const heartbeats = require('heartbeats');
@@ -40,6 +41,14 @@ class BaseStation {
           base_path: base_log_dir,
           suffix: 'gps-data',
           formatter: new GpsFormatter({
+            date_format: this.date_format
+          })
+        });
+        this.beep_logger = new Logger({
+          id: this.station_id,
+          base_path: base_log_dir,
+          suffix: 'raw-data',
+          formatter: new BeepFormatter({
             date_format: this.date_format
           })
         });
@@ -117,6 +126,7 @@ class BaseStation {
     this.heartbeat.createEvent(this.config.data.record.flush_data_cache_seconds, (count, last) => {
       if (this.config.data.record.enabled === true) {
         this.gps_logger.writeCacheToDisk();
+        this.beep_logger.writeCacheToDisk();
       }
     });
     if (this.config.data.gps.enabled === true) {
@@ -172,13 +182,14 @@ class BaseStation {
       });
       beep_reader.on('beep', (beep) => {
         console.log(beep);
+
+        this.beep_logger.addRecord(beep);
+        this.broadcast(beep);
       });
       beep_reader.on('open', (info) => {
         this.record('opened radio on port', info.port_uri);
         this.active_radios[info.port_uri] = info;
-        radio.config.forEach((cmd) => {
-          beep_reader.write(cmd);
-        });
+        beep_reader.issueCommands(radio.config);
       });
       beep_reader.on('close', (info) => {
         if (info.port_uri in Object.keys(this.active_radios)) {

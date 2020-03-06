@@ -27,7 +27,7 @@ class GpsFormatter {
   formatRecord(record) {
     let fields;
     let now = moment(new Date()).format(this.date_format);
-    if (record.lat) {
+    if (record) {
       fields = [
         now,
         moment(record.time).format(this.date_format),

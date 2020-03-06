@@ -26,6 +26,19 @@ class RadioReceiver extends EventEmitter {
     this.fw_version = null;
     this.commands = [];
     this.current_command = null;
+    this.delay = 0.25;
+  }
+
+  /**
+   * 
+   * @param {list} cmds - array of commands to issue
+   */
+  issueCommands(cmds) {
+    let n = 0;
+    cmds.forEach((cmd) => {
+      n += 1;
+      setTimeout(this.write.bind(this), this.delay*n*1000, cmd);
+    });
   }
 
   /**
@@ -33,7 +46,7 @@ class RadioReceiver extends EventEmitter {
    * @param {*} data - write given data to the radio
    */
   write(data) {
-    console.log(`writing to radio ${this.channel}:  ${data.trim()}`)
+    console.log(`${new Date()} writing to radio ${this.channel}:  ${data.trim()}`)
     this.serialport.write(data.trim()+'\r\n', function(err) {
       if (err) {
         this.emit('error', `error writing to radio ${this.data()}; ${err.toString()}`);
