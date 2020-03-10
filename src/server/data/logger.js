@@ -8,16 +8,12 @@ const fs = require('fs');
 class Logger {
   /**
    * @constructor
-   * @param {string} opts.id - id of the station used to generate a filename
-   * @param {string} opts.base_path - base directory to save data
-   * @param {string} opts.suffix - suffix for station
+   * @param {string} opts.uri- suffix for station
    * @param {object} opts.formatter- data formatter with file header 
    *    formatter expected to have header field and a formatRecord method for translating records to file format
    */
   constructor(opts) {
-    this.id = opts.id;
-    this.base_path = opts.base_path;
-    this.suffix = opts.suffix;
+    this.fileuri = opts.fileuri;
     this.formatter = opts.formatter;
 
     // check if a line termintaor is passed, otherwise default to windows \r\n
@@ -26,16 +22,12 @@ class Logger {
       this.line_terminator = opts.line_terminator;
     }
 
-    // build file uri from id an ssuffix
-    this.filename = `CTT-${this.id}-${this.suffix}.csv`;
-    this.fileuri = path.join(this.base_path, this.filename);
-
     this.record_cache = [];
   }
 
   /**
    * 
-   * @param {record} record to add to cache - in final write format
+   * @param {record} record to add to cache, to be parsed by provided formatter
    */
   addRecord(record) {
     let line = this.formatter.formatRecord(record);
