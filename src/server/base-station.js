@@ -14,7 +14,7 @@ class BaseStation {
     this.config = new StationConfig(config_filename);
     this.active_radios = {};
     this.gps_client = new GpsClient({
-      max_gps_records: 10
+      max_gps_records: 50
     });
     this.station_id;
     this.date_format;
@@ -118,8 +118,7 @@ class BaseStation {
     if (this.config.data.gps.enabled === true) {
       if (this.config.data.gps.record === true) {
         this.heartbeat.createEvent(this.config.data.gps.seconds_between_fixes, (count, last) => {
-          console.log('doing gps stuff');
-          this.data_manager.handleGps(this.gps_client.latest_gps_fix);
+          this.data_manager.handleGps(this.gps_client.info());
         });
       }
     }

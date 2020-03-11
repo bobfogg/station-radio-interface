@@ -17,20 +17,41 @@ class GpsClient extends EventEmitter{
         this.buildGpsClient();
     }
 
+    /**
+     * return current latest info
+     */
+    info() {
+        return {
+            gps: this.latest_gps_fix,
+            sky: this.latest_sky_view,
+            mean: this.meanFix()
+        }
+    }
+
+    /**
+     * calculate mean lat/lng for previous set of records up to this.max_gps_records
+     */
     meanFix() {
-        let mean_lat=0, mean_lng=0;
+        let mean_lat=0, mean_lng=0, n=0;
         if (this.recent_gps_records.length < 1) {
             return; 
         }
         this.recent_gps_records.forEach((record) => {
-            mean_lat += record.lat;
-            mean_lng += record.lon;
-        });
-        mean_lat = mean_lat / this.recent_gps_records.length;
-        mean_lng = mean_lng / this.recent_gps_records.length;
+            if (record.lat) {
+                mean_lat += record.lat;
+                mean_lng += record.lon;
+                n += 1;
+            }
+         });
+         if (n < 1) {
+             return;
+         }
+        mean_lat = mean_lat / n;
+        mean_lng = mean_lng / n;
         return {
             lat: mean_lat.toFixed(6),
-            lng: mean_lng.toFixed(6)
+            lng: mean_lng.toFixed(6),
+            n: n
         }
     }
 

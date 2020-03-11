@@ -14,7 +14,10 @@ class GpsFormatter {
       'latitude',
       'longitude',
       'altitude',
-      'quality'
+      'quality',
+      'mean lat',
+      'mean lng',
+      'n fixes'
     ];
     this.gps_precision = opts.gps_precision ? opts.gps_precision : 6;
     this.date_format = opts.date_format;
@@ -27,14 +30,19 @@ class GpsFormatter {
   formatRecord(record) {
     let fields;
     let now = moment(new Date()).format(this.date_format);
-    if (record) {
+    if (record.gps) {
       fields = [
         now,
-        moment(record.time).format(this.date_format),
-        record.lat.toFixed(this.gps_precision),
-        record.lon.toFixed(this.gps_precision),
-        record.alt,
-        record.mode
+        moment(record.gps.time).format(this.date_format),
+        record.gps.lat.toFixed(this.gps_precision),
+        record.gps.lon.toFixed(this.gps_precision),
+        record.gps.alt,
+        record.gps.mode,
+        record.gps.mean_lat,
+        record.gps.mean_lng,
+        record.mean.lat,
+        record.mean.lng,
+        record.mean.n
       ]
     } else {
       // no record - add recorded at
