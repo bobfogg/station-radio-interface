@@ -9,7 +9,15 @@ const heartbeats = require('heartbeats');
 const moment = require('moment');
 const path = require('path');
 
+/**
+ * manager class for controlling / reading radios
+ * and writing to disk
+ */
 class BaseStation {
+  /**
+   * 
+   * @param {*} config_filename - string filename used to persist changes / control behaviour
+   */
   constructor(config_filename) {
     this.config = new StationConfig(config_filename);
     this.active_radios = {};
@@ -23,6 +31,9 @@ class BaseStation {
     this.heartbeat = heartbeats.createHeart(1000);
   }
 
+  /**
+   * laod config - start the data manager, gps client, web socket server, timers, radios
+   */
   init() {
     this.config.load().then((data) => {
       // merge default config with current config if there are missing fields
@@ -39,8 +50,8 @@ class BaseStation {
         this.data_manager = new DataManager({
           id: this.station_id, 
           base_log_dir: base_log_dir,
-          date_format: this.config.data.date_format,
-          flush_data_cache_seconds: this.config.data.flush_data_cache_seconds
+          date_format: this.date_format,
+          flush_data_cache_seconds: this.config.data.record.flush_data_cache_seconds
         });
 
         this.log_filename = `sensor-station-${this.station_id}.log`;
@@ -50,11 +61,14 @@ class BaseStation {
         this.record('initializing base station');
         this.startWebsocketServer();
         this.startTimers();
-        this.start();
+        this.startRadios();
       });
     });
   }
 
+  /**
+   * start web socket server
+   */
   startWebsocketServer() {
     this.sensor_socket_server = new SensorSocketServer({
       port: this.config.data.http.websocket_port
@@ -111,15 +125,18 @@ class BaseStation {
     })
   }
 
+  /**
+   * start timers for writing data to disk, collecting GPS data
+   */
   startTimers() {
     if (this.config.data.record.enabled === true) {
       this.heartbeat.createEvent(this.config.data.record.flush_data_cache_seconds, this.data_manager.writeCache.bind(this.data_manager));
-    }
-    if (this.config.data.gps.enabled === true) {
-      if (this.config.data.gps.record === true) {
-        this.heartbeat.createEvent(this.config.data.gps.seconds_between_fixes, (count, last) => {
-          this.data_manager.handleGps(this.gps_client.info());
-        });
+      if (this.config.data.gps.enabled === true) {
+        if (this.config.data.gps.record === true) {
+          this.heartbeat.createEvent(this.config.data.gps.seconds_between_fixes, (count, last) => {
+            this.data_manager.handleGps(this.gps_client.info());
+          });
+        }
       }
     }
   }
@@ -130,12 +147,20 @@ class BaseStation {
     return meta.id;
   }
 
+  /**
+   * 
+   * @param {*} msg - message to broadcast across the web socket server
+   */
   broadcast(msg) {
     if (this.sensor_socket_server) {
       this.sensor_socket_server.broadcast(msg);
     }
   }
 
+  /**
+   * 
+   * @param  {...any} msgs - write data to log and broadcast across web socket server
+   */
   record(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
     msgs.unshift(moment(new Date()).utc().format(this.date_format));
@@ -145,20 +170,19 @@ class BaseStation {
     });
   }
 
+  /**
+   * 
+   * @param  {...any} msgs - broadcast data across web socket server
+   */
   log(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
     msgs.unshift(moment(new Date()).utc().format(this.date_format));
   }
 
-  getRadioReport() {
-    const radios = [];
-    this.active_radios.forEach((port) => {
-      radios.push(this.active_radios[port]);;
-    })
-    return radios;
-  }
-
-  start() {
+  /**
+   * start the radio receivers
+   */
+  startRadios() {
     this.record('starting radio receivers');
     this.config.data.radios.forEach((radio) => {
       let beep_reader = new RadioReceiver({

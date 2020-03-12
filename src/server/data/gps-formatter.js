@@ -38,8 +38,6 @@ class GpsFormatter {
         record.gps.lon.toFixed(this.gps_precision),
         record.gps.alt,
         record.gps.mode,
-        record.gps.mean_lat,
-        record.gps.mean_lng,
         record.mean.lat,
         record.mean.lng,
         record.mean.n

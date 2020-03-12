@@ -107,7 +107,12 @@ class RadioReceiver extends EventEmitter {
         raw_beep = JSON.parse(line);
         raw_beep.channel = this.channel;
         raw_beep.received_at = now;
-        this.emit('beep', raw_beep);
+        if (raw_beep.key) {
+          // radio command response
+          this.emit('response', raw_beep);
+        } else {
+          this.emit('beep', raw_beep);
+        }
       } catch(err) {
         // not a JSON document - emit the raw input
         this.emit('raw', line);
