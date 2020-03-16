@@ -59,6 +59,7 @@ class NodeHealthFormatter {
         record.data.lon ? record.data.lon / 1000000 : '' 
       ];
     } else {
+      // old protocol detected
       if (record.data.node_alive == null) {
         console.error('invalid node health message', record);
         return;
@@ -75,6 +76,7 @@ class NodeHealthFormatter {
         '',
         '',
         '',
+        ''
       ]
       return fields;
     }
