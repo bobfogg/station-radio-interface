@@ -26,18 +26,21 @@ class DataManager {
     this.loggers = {
       beep: new Logger({
         fileuri: this.file_manager.getFileUri('raw-data'),
+        suffix: 'raw-data',
         formatter: new BeepFormatter({
           date_format: this.date_format
-        }) 
+        }),
       }),
       gps: new Logger({
         fileuri: this.file_manager.getFileUri('gps'),
+        suffix: 'gps',
         formatter: new GpsFormatter({
           date_format: this.date_format
         })
       }),
       node_health: new Logger({
         fileuri: this.file_manager.getFileUri('node-health'),
+        suffix: 'node-health',
         formatter: new NodeHealthFormatter({
           date_format: this.date_format
         })
@@ -104,6 +107,26 @@ class DataManager {
    */
   handleGps(record) {
     this.loggers.gps.addRecord(record);
+  }
+
+  /**
+   * rotate all logging files
+   */
+  rotate() {
+    // reduce the array of loggers by rotating data files one at a time
+    return Object.keys(this.loggers).reduce((previousPromise, nextLoggerKey) => {
+      let logger = this.loggers[nextLoggerKey];
+      return previousPromise.then((rotateResult) => {
+        // after prior promise - return the next promise to execute
+        return this.file_manager.rotateDataFile({
+          fileuri: logger.fileuri,
+          new_basename: this.file_manager.getFileName(logger.suffix)
+        }).catch((err) => {
+          console.error(`problem rotating file ${logger.fileuri}`);
+          console.error(err);
+        });
+      })
+    }, Promise.resolve());
   }
 }
 

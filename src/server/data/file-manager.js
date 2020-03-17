@@ -1,4 +1,7 @@
 const path = require('path');
+const moment = require('moment');
+const fs = require('fs');
+const zlib = require('zlib');
 
 /**
  * utility class for generating Filenames / Fileuris from the station id and base log directory
@@ -29,5 +32,79 @@ export class FileManager {
   getFileUri(suffix) {
     let filename = this.getFileName(suffix);
     return path.join(this.base_log_dir, filename);
+  }
+
+  /**
+   * 
+   * @param {*} filename - data file to copmress
+   */
+  compress(uri) {
+    return new Promise((resolve, reject) => {
+      // compress the data
+      const inp = fs.createReadStream(uri);
+      const out = fs.createWriteStream(uri+'.gz');
+      const gzip = zlib.createGzip();
+      inp.pipe(gzip).pipe(out);
+      out.on('close', () => {
+        // finished compressing
+        resolve();
+      });
+      out.on('error', (err) => {
+        // error with compressin stream
+        reject(err);
+      });
+    });
+
+  }
+
+  /**
+   * 
+   * @param {opts.fileuri} fileuri 
+   * @param {opts.new_basename} new_basename 
+   */
+  rotateDataFile(opts) {
+    return new Promise((resolve, reject) => {
+      // append date as suffix to data file
+      let now = moment(new Date()).format('YYYY-MM-DD_HHmmss');
+      let newname = `${opts.new_basename.replace('.csv','')}.${now}.csv`
+      let rotated_uri = path.join(this.base_log_dir, 'rotated', newname);
+
+      // ensure the rotated directory exists
+      fs.mkdirSync(path.join(this.base_log_dir, 'rotated'), {
+        recursive: true
+      });
+
+      // check if the file exists before rotating
+      fs.access(opts.fileuri, (err) => {
+        if (err) {
+          // file does not exist
+          resolve(false);
+          return;
+        }
+        // file exists
+        fs.rename(opts.fileuri, rotated_uri, (err) => {
+          if (err) {
+            // cannot rename
+            reject(err);
+            return;
+          }
+          this.compress(rotated_uri).then(() => {
+            // compression is complete 
+            fs.unlink(rotated_uri, (err) => {
+              // delete file
+              if (err) {
+                // error deleting file
+                reject(err);
+                return;
+              }
+              // complete
+              resolve(true);
+            })
+          }).catch((err) => {
+            reject(err);
+          });
+        });
+      });
+    });
   }
 }

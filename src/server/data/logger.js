@@ -15,6 +15,7 @@ class Logger {
   constructor(opts) {
     this.fileuri = opts.fileuri;
     this.formatter = opts.formatter;
+    this.suffix = opts.suffix;
 
     // check if a line termintaor is passed, otherwise default to windows \r\n
     this.line_terminator = '\r\n';

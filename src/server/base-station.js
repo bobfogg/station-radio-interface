@@ -8,6 +8,7 @@ const fs = require('fs');
 const heartbeats = require('heartbeats');
 const moment = require('moment');
 const path = require('path');
+const _ = require('lodash');
 
 /**
  * manager class for controlling / reading radios
@@ -37,7 +38,7 @@ class BaseStation {
   init() {
     this.config.load().then((data) => {
       // merge default config with current config if there are missing fields
-      this.config.data = Object.assign({}, this.config.default_config, this.config.data);
+      this.config.data = _.merge(this.config.default_config, this.config.data);
       // loaded the config - now save it to disk
       this.config.save().catch((err) => {
         // there was an error saving this config file ... cannot handle persistent storage
@@ -45,23 +46,27 @@ class BaseStation {
         this.record('error saving config to disk');
       }).then(() => {
         this.date_format = this.config.data.record.date_format;
-        this.station_id = this.getId();
-        let base_log_dir = this.config.data.record.base_log_directory;
-        this.data_manager = new DataManager({
-          id: this.station_id, 
-          base_log_dir: base_log_dir,
-          date_format: this.date_format,
-          flush_data_cache_seconds: this.config.data.record.flush_data_cache_seconds
+        // config loaded / merged with defaults / saved to disk - start the software
+        this.getId().then((id) => {
+          // read ID from file
+          this.station_id = id;
+          let base_log_dir = this.config.data.record.base_log_directory;
+          this.data_manager = new DataManager({
+            id: this.station_id, 
+            base_log_dir: base_log_dir,
+            date_format: this.date_format,
+            flush_data_cache_seconds: this.config.data.record.flush_data_cache_seconds
+          });
+
+          this.log_filename = `sensor-station-${this.station_id}.log`;
+          this.log_file_uri = path.join(base_log_dir, this.log_filename);
+
+          this.gps_client.start();
+          this.record('initializing base station');
+          this.startWebsocketServer();
+          this.startTimers();
+          this.startRadios();
         });
-
-        this.log_filename = `sensor-station-${this.station_id}.log`;
-        this.log_file_uri = path.join(base_log_dir, this.log_filename);
-
-        this.gps_client.start();
-        this.record('initializing base station');
-        this.startWebsocketServer();
-        this.startTimers();
-        this.startRadios();
       });
     });
   }
@@ -129,6 +134,7 @@ class BaseStation {
    * start timers for writing data to disk, collecting GPS data
    */
   startTimers() {
+    this.heartbeat.createEvent(this.config.data.record.rotation_frequency_minutes*60, this.data_manager.rotate.bind(this.data_manager));
     if (this.config.data.record.enabled === true) {
       this.heartbeat.createEvent(this.config.data.record.flush_data_cache_seconds, this.data_manager.writeCache.bind(this.data_manager));
       if (this.config.data.gps.enabled === true) {
@@ -141,10 +147,27 @@ class BaseStation {
     }
   }
   
+  /**
+   * get base station id
+   */
   getId() {
-    let contents = fs.readFileSync('/etc/station-id');
-    let meta = JSON.parse(contents);
-    return meta.id;
+    return new Promise((resolve, reject) => {
+      // load id from static json
+      fs.readFile('/etc/station-id', (err, contents) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        try {
+          let meta = JSON.parse(contents);
+          console.log('got id - resolving', meta);
+          resolve(meta.id);
+        } catch(err) {
+          console.error(err);
+          reject(err);
+        }
+      });
+    });
   }
 
   /**

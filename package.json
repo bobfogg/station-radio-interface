@@ -20,6 +20,7 @@
     "aws-sdk": "^2.486.0",
     "glob": "^7.1.4",
     "heartbeats": "^5.0.1",
+    "lodash": "^4.17.15",
     "moment": "^2.24.0",
     "node-gpsd": "^0.3.0",
     "serialport": "^7.1.4",
