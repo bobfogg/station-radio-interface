@@ -44,6 +44,7 @@ export default {
         date_format: "YYYY-MM-DD HH:mm:ss",
         flush_data_cache_seconds: 30,
         rotation_frequency_minutes: 0.2,
+        upload_frequency_minutes: 1,
         base_log_directory: "/data",
         mobile: false
     },

@@ -29,6 +29,7 @@ class BaseStation {
     this.date_format;
     this.gps_logger;
     this.data_manager;
+    this.station_config_file = '/etc/station-config.json';
     this.heartbeat = heartbeats.createHeart(1000);
   }
 
@@ -113,7 +114,6 @@ class BaseStation {
             case('ook'):
             this.record('toggle ook mode on radio', channel);
             radio.write("preset:node3");
-
             break;
             default:
               this.record('invalid command type', cmd);
@@ -134,11 +134,14 @@ class BaseStation {
    * start timers for writing data to disk, collecting GPS data
    */
   startTimers() {
+    // start data rotation timer
     this.heartbeat.createEvent(this.config.data.record.rotation_frequency_minutes*60, this.data_manager.rotate.bind(this.data_manager));
     if (this.config.data.record.enabled === true) {
+      // start data write to disk timer
       this.heartbeat.createEvent(this.config.data.record.flush_data_cache_seconds, this.data_manager.writeCache.bind(this.data_manager));
       if (this.config.data.gps.enabled === true) {
         if (this.config.data.gps.record === true) {
+          // start gps timer
           this.heartbeat.createEvent(this.config.data.gps.seconds_between_fixes, (count, last) => {
             this.data_manager.handleGps(this.gps_client.info());
           });
@@ -200,6 +203,10 @@ class BaseStation {
   log(...msgs) {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
     msgs.unshift(moment(new Date()).utc().format(this.date_format));
+  }
+
+  getStationConfig() {
+
   }
 
   /**

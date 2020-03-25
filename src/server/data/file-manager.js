@@ -42,12 +42,13 @@ export class FileManager {
     return new Promise((resolve, reject) => {
       // compress the data
       const inp = fs.createReadStream(uri);
-      const out = fs.createWriteStream(uri+'.gz');
+      let outfilename = uri+'.gz';
+      const out = fs.createWriteStream(outfilename);
       const gzip = zlib.createGzip();
       inp.pipe(gzip).pipe(out);
       out.on('close', () => {
         // finished compressing
-        resolve();
+        resolve(outfilename);
       });
       out.on('error', (err) => {
         // error with compressin stream
@@ -55,6 +56,33 @@ export class FileManager {
       });
     });
 
+  }
+
+  /**
+   * 
+   * @param {*} fileuri 
+   */
+  rotateUpload(fileuri) {
+    return new Promise((resolve, reject) => {
+      let basename = path.posix.basename(fileuri);
+      let new_directory = path.join('/', 'data', 'uploaded');
+      let newuri = path.join(new_directory, basename);
+      console.log('rotating to', newuri, 'from', fileuri);
+
+      // make sure uploaded directory exists
+      fs.mkdirSync(new_directory, {
+        recursive: true
+      });
+
+      // move to the uploaded uri
+      fs.rename(fileuri, newuri, (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(newuri);
+      });
+    });
   }
 
   /**
@@ -78,6 +106,7 @@ export class FileManager {
       fs.access(opts.fileuri, (err) => {
         if (err) {
           // file does not exist
+          console.log('file does not exist - resolving false', opts.fileuri);
           resolve(false);
           return;
         }
@@ -88,7 +117,7 @@ export class FileManager {
             reject(err);
             return;
           }
-          this.compress(rotated_uri).then(() => {
+          this.compress(rotated_uri).then((compressed_file_uri) => {
             // compression is complete 
             fs.unlink(rotated_uri, (err) => {
               // delete file
@@ -98,7 +127,7 @@ export class FileManager {
                 return;
               }
               // complete
-              resolve(true);
+              resolve(compressed_file_uri);
             })
           }).catch((err) => {
             reject(err);

@@ -3,6 +3,7 @@ import { Logger } from './logger';
 import { BeepFormatter } from './beep-formatter';
 import { GpsFormatter } from './gps-formatter';
 import { NodeHealthFormatter } from './node-health-formatter';
+import { Uploader } from './uploader';
 /**
  * manager class for incoming beep packets
  */
@@ -15,6 +16,11 @@ class DataManager {
     this.id = opts.id;
     this.base_log_dir = opts.base_log_dir;
     this.date_format = opts.date_format;
+    this.uploader = new Uploader({
+      station_id: this.id,
+      credentials_uri: '/etc/ctt.conf'
+    });
+    //this.uploader.watch('/data/rotated');
 
     // utility for maintaining filenames for given id, descriptor (suffix)
     this.file_manager = new FileManager({
@@ -121,12 +127,28 @@ class DataManager {
         return this.file_manager.rotateDataFile({
           fileuri: logger.fileuri,
           new_basename: this.file_manager.getFileName(logger.suffix)
-        }).catch((err) => {
+        })
+        .then((rotated_uri) => {
+          // rotated file
+          if (rotated_uri) {
+            return this.uploader.uploadCttFile(rotated_uri)
+            .then((res) => {
+              if (res.etag) {
+                // upload success!
+                return this.file_manager.rotateUpload(res.fileuri);
+              }
+            })
+          } else {
+            // no rotated uri
+            return Promise.resolve(false);
+          }
+        })
+        .catch((err) => {
           console.error(`problem rotating file ${logger.fileuri}`);
           console.error(err);
         });
-      })
-    }, Promise.resolve());
+      });
+    }, Promise.resolve(true));
   }
 }
 
