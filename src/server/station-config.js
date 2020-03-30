@@ -19,6 +19,7 @@ class StationConfig {
                 if (err) {
                     /* cannot read config file from location */
                     resolve(this.loadDefaultConfig());
+                    return;
                 }
                 try {
                     this.data = JSON.parse(contents);
@@ -28,7 +29,6 @@ class StationConfig {
                     this.data = this.loadDefaultConfig();
                     resolve(this.data);
                 }
-
             });
         });
     }

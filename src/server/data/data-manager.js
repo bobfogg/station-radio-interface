@@ -18,7 +18,7 @@ class DataManager {
     this.date_format = opts.date_format;
     this.uploader = new Uploader({
       station_id: this.id,
-      credentials_uri: '/etc/ctt.conf'
+      credentials_uri: '/etc/ctt/ctt.conf'
     });
     //this.uploader.watch('/data/rotated');
 

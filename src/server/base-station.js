@@ -29,12 +29,11 @@ class BaseStation {
     this.date_format;
     this.gps_logger;
     this.data_manager;
-    this.station_config_file = '/etc/station-config.json';
     this.heartbeat = heartbeats.createHeart(1000);
   }
 
   /**
-   * laod config - start the data manager, gps client, web socket server, timers, radios
+   * load config - start the data manager, gps client, web socket server, timers, radios
    */
   init() {
     this.config.load().then((data) => {
@@ -156,15 +155,13 @@ class BaseStation {
   getId() {
     return new Promise((resolve, reject) => {
       // load id from static json
-      fs.readFile('/etc/station-id', (err, contents) => {
+      fs.readFile('/etc/ctt/station-id', (err, contents) => {
         if (err) {
           reject(err);
           return;
         }
         try {
-          let meta = JSON.parse(contents);
-          console.log('got id - resolving', meta);
-          resolve(meta.id);
+          resolve(contents.toString().trim());
         } catch(err) {
           console.error(err);
           reject(err);
@@ -191,9 +188,11 @@ class BaseStation {
     this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
     msgs.unshift(moment(new Date()).utc().format(this.date_format));
     let line = msgs.join(' ') + '\r\n';
-    fs.appendFile(this.log_file_uri, line, (err) => {
-      if (err) throw err;
-    });
+    try {
+      fs.appendFileSync(this.log_file_uri, line);
+    } catch(err) {
+      console.error(err);
+    }
   }
 
   /**

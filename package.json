@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node lib/index.js",
     "compile": "babel src -d lib --source-maps --watch",
-    "babel": "babel src -d lib",
+    "build": "babel src -d lib",
     "dev": "node --inspect lib/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -22,6 +22,7 @@
     "heartbeats": "^5.0.1",
     "lodash": "^4.17.15",
     "moment": "^2.24.0",
+    "node-fetch": "^2.6.0",
     "node-gpsd": "^0.3.0",
     "serialport": "^7.1.4",
     "usb": "^1.6.0",

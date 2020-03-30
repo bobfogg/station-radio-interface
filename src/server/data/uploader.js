@@ -4,6 +4,7 @@ const moment = require('moment');
 const fs = require('fs');
 const glob = require('glob');
 const path = require('path');
+const fetch = require('node-fetch');
 
 class Uploader extends EventEmitter {
   /**
@@ -132,9 +133,14 @@ class Uploader extends EventEmitter {
     return new Promise((resolve, reject) => {
       fetch('http://localhost:3000/led/diag/a', {
         method: 'POST',
-        body: JSON.stringify({state: 'blink', blink_rate_ms: 100})
+        body: JSON.stringify({state: 'blink', blink_rate_ms: 100}),
+        headers: { 'Content-Type': 'application/json' }
       }).then((res) => {
         console.log('LED response', res.json());
+      })
+      .catch((err) => {
+        console.log('unable to toggle LED from hardware server');
+        console.error(err);
       });
       fs.readFile(opts.fileuri, (err, contents) => {
         if (err) {
@@ -156,6 +162,16 @@ class Uploader extends EventEmitter {
               fileuri: opts.fileuri,
               etag: data.ETag
             };
+            fetch('http://localhost:3000/led/diag/a', {
+              method: 'POST',
+              body: JSON.stringify({state: "on"}),
+              headers: { 'Content-Type': 'application/json'}
+            }).then((res) => {
+              console.log('LED toggle finished');
+            }).catch((err) => {
+              console.log('cannot toggle LED');
+              console.error(err);
+            });
             resolve(res);
             return
           }
