@@ -3,35 +3,35 @@ export default {
         channel: 1,
         path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.2:1.0",
         config: [
-            "preset:tagfsk"
+            "preset:fsktag"
         ],
         record: true
     },{
         channel: 2,
         path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.1:1.0",
         config: [
-            "preset:tagfsk"
+            "preset:fsktag"
         ],
         record: true
     },{
         channel: 3,
         path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.2:1.0",
         config: [
-            "preset:tagfsk"
+            "preset:fsktag"
         ],
         record: true
     },{
         channel: 4,
         path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.3:1.0",
         config: [
-            "preset:tagfsk"
+            "preset:fsktag"
         ],
         record: true
     },{
         channel: 5,
         path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.3.4:1.0",
         config: [
-            "preset:tagfsk"
+            "preset:fsktag"
         ],
         record: true
     }],
@@ -42,9 +42,9 @@ export default {
     record: {
         enabled: true,
         date_format: "YYYY-MM-DD HH:mm:ss",
-        flush_data_cache_seconds: 30,
-        rotation_frequency_minutes: 0.2,
-        upload_frequency_minutes: 1,
+        flush_data_cache_seconds: 5,
+        rotation_frequency_minutes: 60,
+        upload_frequency_minutes: 60,
         base_log_directory: "/data",
         mobile: false
     },
