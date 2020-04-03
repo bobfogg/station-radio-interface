@@ -22,8 +22,14 @@ class BaseStation {
   constructor(config_filename) {
     this.config = new StationConfig(config_filename);
     this.active_radios = {};
-    this.gps_client = new GpsClient({
+    this.gps_client = new  GpsClient({
       max_gps_records: 50
+    });
+    this.gps_client.on('3d-fix', (fix) => {
+      fix.msg_type = 'gps';
+      let data = this.gps_client.info();
+      data.msg_type = 'gps';
+      this.broadcast(JSON.stringify(data));
     });
     this.station_id;
     this.date_format;
@@ -71,6 +77,20 @@ class BaseStation {
     });
   }
 
+  toggleRadioMode(opts) {
+    if (opts.channel in Object.keys(this.active_radios)) {
+      this.record(`toggling ${opts.mode} mode on channel ${opts.channel}`);
+      let radio = this.active_radios[opts.channel];
+      this.config.toggleRadioMode({
+        channel: opts.channel,
+        cmd: radio.preset_commands[opts.mode]
+      });
+      radio.issuePresetCommand(opts.mode)
+    } else {
+      this.record(`invalid radio channel ${opts.channel}`);
+    }
+  }
+
   /**
    * start web socket server
    */
@@ -81,48 +101,13 @@ class BaseStation {
     this.sensor_socket_server.on('cmd', (cmd) => {
       let line;
       switch (cmd.cmd) {
-        case('save_radio'):
-        Object.keys(this.active_radios).forEach((channel) => {
-          this.record(`saving config for radio ${channel}`);
-          let radio = this.active_radios[channel];
-          try {
-            radio.write("save");
-          } catch(err) {
-            console.log(`error saving radio on channel ${channel}`);
-            console.error(err);
-          }
-        });
-        break;
         case('toggle_radio'):
-        let channel = cmd.data.channel;
-        if (channel in Object.keys(this.active_radios)) {
-          let radio = this.active_radios[channel];
-          switch (cmd.data.type) {
-            case('node'):
-            line = "preset:node";
-            this.record('toggle node mode on radio', channel);
-            //radio.write("mode:node_v2");
-            radio.write("preset:node2");
-            break;
-            case('tag'):
-            this.record('toggle lifetag mode on radio', channel);
-            //radio.write("mode:tag_fsk");
-            console.log('writing to radio');
-            radio.write("preset:fsktag");
-            break;
-            case('ook'):
-            this.record('toggle ook mode on radio', channel);
-            radio.write("preset:node3");
-            break;
-            default:
-              this.record('invalid command type', cmd);
-              break;
-          }
-          break;
+          let channel = cmd.data.channel;
+          this.toggleRadioMode({
+            channel: channel,
+            mode: cmd.data.type
+          });
         }
-        default:
-          this.record('unknown cmd', JSON.stringify(cmd));
-      }
     });
     this.sensor_socket_server.on('client_conn', (ip) => {
       this.log(`client connected from IP: ${ip}`);
@@ -176,6 +161,7 @@ class BaseStation {
    */
   broadcast(msg) {
     if (this.sensor_socket_server) {
+      console.log('broadcasting beep', msg);
       this.sensor_socket_server.broadcast(msg);
     }
   }
@@ -223,7 +209,8 @@ class BaseStation {
         //console.log(beep);
 
         this.data_manager.handleRadioBeep(beep);
-        this.broadcast(beep);
+        beep.msg_type = 'beep';
+        this.broadcast(JSON.stringify(beep));
       });
       beep_reader.on('open', (info) => {
         this.record('opened radio on port', info.port_uri);

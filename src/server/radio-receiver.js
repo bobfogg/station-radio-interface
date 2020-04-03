@@ -27,6 +27,21 @@ class RadioReceiver extends EventEmitter {
     this.commands = [];
     this.current_command = null;
     this.delay = 0.25;
+
+    this.preset_commands = {
+      "node": "preset:node3",
+      "tag": "preset:tagfsk",
+      "ook": "prset:tagook"
+    }
+  }
+
+  issuePresetCommand(cmd) {
+    console.log('about to issue preset command', cmd)
+    let write_cmd = this.preset_commands[cmd];
+    if (write_cmd) {
+      console.log('issuing preset', write_cmd, 'to', this.channel);
+      this.write(write_cmd);
+    }
   }
 
   /**
@@ -46,6 +61,7 @@ class RadioReceiver extends EventEmitter {
    * @param {*} data - write given data to the radio
    */
   write(data) {
+    console.log('write', data);
     console.log(`${new Date()} writing to radio ${this.channel}:  ${data.trim()}`)
     this.serialport.write(data.trim()+'\r\n', function(err) {
       if (err) {

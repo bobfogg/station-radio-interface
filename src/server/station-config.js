@@ -50,6 +50,23 @@ class StationConfig {
             });
         });
     }
+
+    toggleRadioMode(opts) {
+        this.data.radios.forEach((radio) => {
+            if (radio.channel == opts.channel) {
+                console.log('setting radio mode');
+                radio.config = [
+                    opts.cmd
+                ]
+            }
+        });
+        this.save(this.filename)
+        .catch((err) => {
+            // error writing changes to disk
+            console.error(err);
+        });
+
+    }
 }
 
 export { StationConfig };

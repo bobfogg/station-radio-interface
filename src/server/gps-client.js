@@ -88,11 +88,11 @@ class GpsClient extends EventEmitter{
                     break;
                 case 2:
                     // 2d fix
-                    this.emit('2d-fix', data);
+                    this.emit('2d-fix', this.info());
                     break;
                 case 3:
                     // 3d fix
-                    this.emit('3d-fix', data);
+                    this.emit('3d-fix', this.info());
                     this.addGpsRecord(data);
                     break;
                 default:
