@@ -17,16 +17,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "aws-sdk": "^2.486.0",
+    "aws-sdk": "^2.654.0",
     "glob": "^7.1.4",
     "heartbeats": "^5.0.1",
     "lodash": "^4.17.15",
     "moment": "^2.24.0",
     "node-fetch": "^2.6.0",
     "node-gpsd": "^0.3.0",
-    "serialport": "^7.1.4",
+    "serialport": "^7.1.5",
     "usb": "^1.6.0",
-    "ws": "^7.0.1"
+    "ws": "^7.2.3"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
