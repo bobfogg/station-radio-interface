@@ -3,6 +3,7 @@ import { SensorSocketServer } from './http/web-socket-server';
 import { GpsClient } from './gps-client';
 import { StationConfig } from './station-config';
 import { DataManager } from './data/data-manager';
+const fetch = require('node-fetch');
 
 const fs = require('fs');
 const heartbeats = require('heartbeats');
@@ -106,7 +107,31 @@ class BaseStation {
           this.toggleRadioMode({
             channel: channel,
             mode: cmd.data.type
+          })
+          .catch((err) => {
+            console.log('unable to toggle radio');
+            console.error(err);
           });
+          break;
+        case('about'):
+          fetch('http://localhost:3000/about')
+            .then((response) => {
+              return response.json();
+            })
+            .then((res) =>  {
+              let data = res;
+              console.log('ABOUT', data);
+              data.station_id = this.station_id;
+              data.msg_type = 'about';
+              this.broadcast(JSON.stringify(data));
+            })
+            .catch((err) => {
+              console.log('unable to request info from hardware server');
+              console.error(err);
+            });
+          break;
+        default:
+          break;
         }
     });
     this.sensor_socket_server.on('client_conn', (ip) => {
@@ -161,7 +186,6 @@ class BaseStation {
    */
   broadcast(msg) {
     if (this.sensor_socket_server) {
-      console.log('broadcasting beep', msg);
       this.sensor_socket_server.broadcast(msg);
     }
   }
