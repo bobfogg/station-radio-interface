@@ -107,10 +107,6 @@ class BaseStation {
           this.toggleRadioMode({
             channel: channel,
             mode: cmd.data.type
-          })
-          .catch((err) => {
-            console.log('unable to toggle radio');
-            console.error(err);
           });
           break;
         case('about'):
