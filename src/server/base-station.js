@@ -129,6 +129,7 @@ class BaseStation {
               let data = json;
               data.station_id = this.station_id;
               data.msg_type = 'about';
+              data.begin = this.begin;
               this.broadcast(JSON.stringify(data));
             })
             .catch((err) => {
