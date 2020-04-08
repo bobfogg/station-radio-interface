@@ -109,6 +109,16 @@ class BaseStation {
             mode: cmd.data.type
           });
           break;
+        case('stats'):
+          console.log('stat request');
+          this.broadcast(JSON.stringify(this.data_manager.stats.stats));
+          break;
+        case('checkin'):
+          console.log('about to check in')
+          break;
+        case('upload'):
+          console.log('uploading all data files');
+          break
         case('about'):
           fetch('http://localhost:3000/about')
             .then((response) => {

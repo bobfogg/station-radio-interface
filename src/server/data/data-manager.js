@@ -5,6 +5,8 @@ import { GpsFormatter } from './gps-formatter';
 import { NodeHealthFormatter } from './node-health-formatter';
 import { TelemetryFormatter } from './telemetry-formatter';
 import { Uploader } from './uploader';
+import { BeepStatManager } from './beep-stat-manager';
+
 /**
  * manager class for incoming beep packets
  */
@@ -21,6 +23,7 @@ class DataManager {
       station_id: this.id,
       credentials_uri: '/etc/ctt/ctt.conf'
     });
+    this.stats = new BeepStatManager();
     //this.uploader.watch('/data/rotated');
 
     // utility for maintaining filenames for given id, descriptor (suffix)
@@ -77,23 +80,29 @@ class DataManager {
    * @param {*} beep 
    */
   handleRadioBeep(beep) {
+    let record, id, stats;
     if (beep.meta) {
       // expect new protocol
       switch (beep.meta.data_type) {
         case 'coded_id': {
-          this.loggers.beep.addRecord(beep);
+          record = this.loggers.beep.addRecord(beep);
+          this.stats.addBeep(record);
           break;
         }
         case 'node_coded_id': {
-          this.loggers.beep.addRecord(beep);
+          record = this.loggers.beep.addRecord(beep);
+          this.stats.addBeep(record);
           break;
         }
         case 'node_health': {
-          this.loggers.node_health.addRecord(beep);
+          record = this.loggers.node_health.addRecord(beep);
+          this.stats.addNodeHealth(record);
           break;
         }
         case 'telemetry': {
           this.loggers.telemetry.addRecord(beep);
+          this.stats.addTelemetryBeep(record);
+          break;
         }
         default: {
           console.log(beep);
@@ -104,19 +113,20 @@ class DataManager {
     } else {
       // handle original protocol
       if (beep.data.node_alive) {
-        this.loggers.node_health.addRecord(beep);
-        return;
+        console.log('OLD HEALTH');
+        record = this.loggers.node_health.addRecord(beep);
+        this.stats.addNodeHealth(record);
       }
       if (beep.data.node_beep) {
-        this.loggers.beep.addRecord(beep);
-        return;
+        record = this.loggers.beep.addRecord(beep);
+        this.stats.addBeep(record);
       }
       if (beep.data.tag) {
-        this.loggers.beep.addRecord(beep);
-        return;
+        record = this.loggers.beep.addRecord(beep);
+        this.stats.addBeep(record);
       };
-      console.error('uknown record here', beep);
     }
+    console.log(JSON.stringify(this.stats.stats, null, 2));
   }
 
   /**

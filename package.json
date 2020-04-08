@@ -5,6 +5,7 @@
   "main": "lib/index.js",
   "scripts": {
     "start": "node lib/index.js",
+    "debug": "node --inspect lib/index",
     "compile": "babel src -d lib --source-maps --watch",
     "build": "babel src -d lib",
     "dev": "node --inspect lib/index.js",
