@@ -36,6 +36,8 @@ class BaseStation {
     this.date_format;
     this.gps_logger;
     this.data_manager;
+    // record the date/time the station is started
+    this.begin = moment(new Date()).utc();
     this.heartbeat = heartbeats.createHeart(1000);
   }
 

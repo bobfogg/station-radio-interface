@@ -126,7 +126,6 @@ class DataManager {
         this.stats.addBeep(record);
       };
     }
-    console.log(JSON.stringify(this.stats.stats, null, 2));
   }
 
   /**

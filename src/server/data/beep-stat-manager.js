@@ -12,9 +12,11 @@ class BeepStatManager {
     console.log('adding stat channel', channel);
     this.stats.channels[channel] = {
       beeps: {},
-      nodes: {},
+      nodes: {
+        beeps: {},
+        health: {}
+      },
       telemetry: {},
-      health: {},
     }
   }
 
@@ -28,7 +30,7 @@ class BeepStatManager {
     let beep_stats;
     if (record.NodeId.length > 0) {
       // from a node
-      beep_stats = channel.nodes;
+      beep_stats = channel.nodes.beeps;
     } else {
       beep_stats = channel.beeps;
     }
@@ -52,7 +54,7 @@ class BeepStatManager {
     let channel = this.getChannel(record);
     let node_id = record.NodeId;
     delete record.NodeId;
-    channel.health[node_id] = record;
+    channel.nodes.health[node_id] = record;
   }
 
 }
