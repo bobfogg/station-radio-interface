@@ -35,7 +35,7 @@ class TelemetryFormatter {
   formatRecord(record) {
     if (record.protocol) {
       // new protocol
-      let recorded_at = moment(new Date(record.data.time)).utc();
+      let recorded_at = moment(new Date(record.data.time*1000)).utc();
       return [
         record.received_at.format(this.date_format),
         recorded_at.format(this.date_format),
