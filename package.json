@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://bitbucket.org/cellulartrackingtechnologies/station-radio-interface"
+    "url": "https://github.com/cellular-tracking-technologies/station-radio-interface.git"
   },
   "author": "",
   "license": "ISC",
