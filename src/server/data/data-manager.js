@@ -3,6 +3,7 @@ import { Logger } from './logger';
 import { BeepFormatter } from './beep-formatter';
 import { GpsFormatter } from './gps-formatter';
 import { NodeHealthFormatter } from './node-health-formatter';
+import { TelemetryFormatter } from './telemetry-formatter';
 import { Uploader } from './uploader';
 /**
  * manager class for incoming beep packets
@@ -50,6 +51,13 @@ class DataManager {
         formatter: new NodeHealthFormatter({
           date_format: this.date_format
         })
+      }),
+      telemetry: new Logger({
+        fileuri: this.file_manager.getFileUri('telemetry'),
+        suffix: 'telemetry',
+        formatter: new TelemetryFormatter({
+          date_format: this.date_format
+        })
       })
     }
   }
@@ -84,8 +92,12 @@ class DataManager {
           this.loggers.node_health.addRecord(beep);
           break;
         }
+        case 'telemetry': {
+          this.loggers.telemetry.addRecord(beep);
+        }
         default: {
-          console.error(`i don't know what to do with this record ${beep}`);
+          console.log(beep);
+          console.error(`i don't know what to do with this record`);
           break;
         }
       }

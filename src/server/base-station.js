@@ -116,7 +116,6 @@ class BaseStation {
             })
             .then((res) =>  {
               let data = res;
-              console.log('ABOUT', data);
               data.station_id = this.station_id;
               data.msg_type = 'about';
               this.broadcast(JSON.stringify(data));
