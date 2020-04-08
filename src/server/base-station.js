@@ -100,7 +100,6 @@ class BaseStation {
       port: this.config.data.http.websocket_port
     });
     this.sensor_socket_server.on('cmd', (cmd) => {
-      let line;
       switch (cmd.cmd) {
         case('toggle_radio'):
           let channel = cmd.data.channel;

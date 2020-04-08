@@ -32,7 +32,7 @@ class BeepStatManager {
     } else {
       beep_stats = channel.beeps;
     }
-    if (Object.keys(channel.beeps).includes(record.TagId)) {
+    if (Object.keys(beep_stats).includes(record.TagId)) {
       beep_stats[record.TagId] += 1;
     } else {
       beep_stats[record.TagId] = 1;
