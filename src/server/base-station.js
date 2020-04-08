@@ -121,11 +121,9 @@ class BaseStation {
           break
         case('about'):
           fetch('http://localhost:3000/about')
-            .then((response) => {
-              return response.json();
-            })
-            .then((res) =>  {
-              let data = res;
+            .then(res => res.json()) 
+            .then((json) =>  {
+              let data = json;
               data.station_id = this.station_id;
               data.msg_type = 'about';
               this.broadcast(JSON.stringify(data));
