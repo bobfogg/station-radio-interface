@@ -52,7 +52,7 @@ class NodeHealthFormatter {
         record.data.temp_c,
         recorded_at.format(this.date_format),
         record.data.fw,
-        record.data.sol_v,
+        record.data.sol_v / 100,
         record.data.sol_ma,
         record.data.sum_sol_ma,
         record.data.lat ? record.data.lat / 1000000 : '',
