@@ -25,7 +25,6 @@ class BeepStatManager {
   }
 
   addBeep(record) {
-    console.log('adding record', record);
     let channel = this.getChannel(record);
     let beep_stats;
     if (record.NodeId.length > 0) {

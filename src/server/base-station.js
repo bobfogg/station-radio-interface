@@ -112,7 +112,9 @@ class BaseStation {
           break;
         case('stats'):
           console.log('stat request');
-          this.broadcast(JSON.stringify(this.data_manager.stats.stats));
+          let stats = this.data_manager.stats.stats;
+          stats.msg_type = 'stats';
+          this.broadcast(JSON.stringify(stats));
           break;
         case('checkin'):
           console.log('about to check in')
