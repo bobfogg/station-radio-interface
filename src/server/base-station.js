@@ -4,7 +4,7 @@ import { GpsClient } from './gps-client';
 import { StationConfig } from './station-config';
 import { DataManager } from './data/data-manager';
 const fetch = require('node-fetch');
-
+const { spawn } = require('child_process');
 const fs = require('fs');
 const heartbeats = require('heartbeats');
 const moment = require('moment');
@@ -122,6 +122,26 @@ class BaseStation {
         case('upload'):
           console.log('uploading all data files');
           break
+        case('update-station'):
+          const update = spawn('update-station');
+          update.stdout.on('data', (data) => {
+            let msg = {
+              data: data.toString(),
+              msg_type: 'log'
+            }
+            this.broadcast(JSON.stringify(msg));
+          });
+          update.stderr.on('data', (data) => {
+            let msg = {
+              data: data.toString(),
+              msg_type: 'log'
+            }
+            this.broadcast(JSON.stringify(msg));
+          });
+          update.on('close', (code) => {
+            console.log('finished station update', code);
+          });
+          break;
         case('about'):
           fetch('http://localhost:3000/about')
             .then(res => res.json()) 
