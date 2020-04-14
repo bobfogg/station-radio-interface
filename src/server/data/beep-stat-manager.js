@@ -40,7 +40,7 @@ class BeepStatManager {
     }
   }
 
-  addTelemetry(record) {
+  addTelemetryBeep(record) {
     let channel = this.getChannel(record);
     if (Objects.keys(this.stats.telemetry).includes(record.Id)) {
       channel.telemetry[record.Id] += 1
