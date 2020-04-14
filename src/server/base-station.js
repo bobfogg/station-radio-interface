@@ -3,6 +3,7 @@ import { SensorSocketServer } from './http/web-socket-server';
 import { GpsClient } from './gps-client';
 import { StationConfig } from './station-config';
 import { DataManager } from './data/data-manager';
+import { ServerApi } from './http/server-api';
 const fetch = require('node-fetch');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -39,6 +40,7 @@ class BaseStation {
     // record the date/time the station is started
     this.begin = moment(new Date()).utc();
     this.heartbeat = heartbeats.createHeart(1000);
+    this.server_api = new ServerApi();
   }
 
   /**
@@ -166,12 +168,19 @@ class BaseStation {
     })
   }
 
+  checkin() {
+    console.log('checking in');
+    this.server_api.healthCheckin(this.data_manager.stats.stats);
+  }
+
   /**
    * start timers for writing data to disk, collecting GPS data
    */
   startTimers() {
     // start data rotation timer
     this.heartbeat.createEvent(this.config.data.record.rotation_frequency_minutes*60, this.data_manager.rotate.bind(this.data_manager));
+    this.heartbeat.createEvent(this.config.data.record.sensor_data_frequency_minutes*60, this.server_api.pollSensors.bind(this.server_api));
+    this.heartbeat.createEvent(this.config.data.record.checkin_frequency_minutes*60, this.checkin.bind(this));
     if (this.config.data.record.enabled === true) {
       // start data write to disk timer
       this.heartbeat.createEvent(this.config.data.record.flush_data_cache_seconds, this.data_manager.writeCache.bind(this.data_manager));

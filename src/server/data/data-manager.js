@@ -24,7 +24,6 @@ class DataManager {
       credentials_uri: '/etc/ctt/ctt.conf'
     });
     this.stats = new BeepStatManager();
-    //this.uploader.watch('/data/rotated');
 
     // utility for maintaining filenames for given id, descriptor (suffix)
     this.file_manager = new FileManager({
