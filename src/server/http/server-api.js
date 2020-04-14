@@ -3,12 +3,12 @@ const os = require('os');
 
 class ServerApi {
   constructor() {
-    this.endpoint = "http://wildlife-debug.celltracktech.com:8014/station"
+    this.endpoint = "http://wildlife-debug.celltracktech.net:8014/station/v2/checkin/"
     this.hardware_endpoint = "http://localhost:3000/";
     this.details = [
       'modem',
       'sensor/details',
-      'peripherals',
+      //'peripherals',
       'gps',
       'about'
     ]
@@ -17,12 +17,9 @@ class ServerApi {
   }
 
   pollSensors() {
-    console.log('polling sensor data');
     let uri = `${this.hardware_endpoint}sensor/details`
-    console.log('posting to uri', uri);
     fetch(uri).then(res => res.json())
       .then((data) => {
-        console.log('adding sensor data');
         this.sensor_data.push(data);
         if (this.sensor_data.length > this.max_sensor_records) {
           // only store up to a maximum number of sensor records
@@ -60,6 +57,28 @@ class ServerApi {
     }
   }
 
+  filterStats(stats) {
+    console.log('filtering tags');
+    Object.keys(stats.channels).forEach((channel) => {
+      let channel_data = stats.channels[channel];
+      Object.keys(channel_data.beeps).forEach((tag) => {
+        let cnt = channel_data.beeps[tag];
+        if (cnt < 5) {
+          console.log('removing tag info for', tag, cnt);
+          delete channel_data.beeps[tag];
+        }
+      });
+      Object.keys(channel_data.nodes.beeps).forEach((tag) => {
+        let cnt = channel_data.nodes.beeps[tag];
+        if (cnt < 5) {
+          console.log('removing node tag for', tag, cnt);
+          delete channel_data.nodes.beeps[tag];
+        }
+      });
+    });
+    return stats;
+  }
+
   healthCheckin(stats) {
     let promises = [];
     this.details.forEach((post) => {
@@ -70,18 +89,34 @@ class ServerApi {
       .then((responses) => {
         return {
           'modem': responses[0],
-          'sensor': responses[1],
-          'peripherals': responses[2],
-          'gps': responses[3],
-          'about': responses[4]
+          //'peripherals': responses[2],
+          'gps': responses[2],
+          'about': responses[3]
         }
       })
       .then((data) => {
         let v1_checkin_data = data //this.downgrade(data);
-        v1_checkin_data.stats = stats;
-        console.log(JSON.stringify(v1_checkin_data,null,2));
-        // clear sensor data
-        this.sensor_data = [];
+        v1_checkin_data.stats = this.filterStats(stats);
+        data.gps = data.gps.mean;
+        data.sensor = this.sensor_data;
+        console.log(JSON.stringify(data, null, 2))
+        console.log('about to check in');
+        fetch(this.endpoint, {
+          method: 'POST',
+          body: JSON.stringify(data),
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(res => res.json())
+        .then((json) => {
+          // we have a successful server checkin - clear sensor data
+          this.sensor_data = [];
+          console.log('checkin success!');
+          console.log(json);
+        })
+        .catch((err) => {
+          console.log('unable to check into server')
+          console.error(err);
+        })
       })
       .catch((err) => {
         console.error(err);
