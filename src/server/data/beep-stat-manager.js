@@ -9,7 +9,6 @@ class BeepStatManager {
   }
 
   addStatChannel(channel) {
-    console.log('adding stat channel', channel);
     this.stats.channels[channel] = {
       beeps: {},
       nodes: {
@@ -42,10 +41,11 @@ class BeepStatManager {
 
   addTelemetryBeep(record) {
     let channel = this.getChannel(record);
-    if (Objects.keys(this.stats.telemetry).includes(record.Id)) {
-      channel.telemetry[record.Id] += 1
+    let hardware_id = record.Id;
+    if (Object.keys(channel.telemetry).includes(hardware_id)) {
+      channel.telemetry[hardware_id] += 1
     } else {
-      channel.telemetry[record.Id] = 1;
+      channel.telemetry[hardware_id] = 1;
     }
   }
 

@@ -12,7 +12,7 @@ class TelemetryFormatter {
       'ReceivedAt',
       'RecordedAt',
       'Id',
-      'Channel',
+      'RadioId',
       'Rssi',
       'Latitude',
       'Longitude',

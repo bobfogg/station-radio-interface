@@ -99,7 +99,7 @@ class DataManager {
           break;
         }
         case 'telemetry': {
-          this.loggers.telemetry.addRecord(beep);
+          record = this.loggers.telemetry.addRecord(beep);
           this.stats.addTelemetryBeep(record);
           break;
         }
