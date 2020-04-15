@@ -42,7 +42,7 @@ class NodeHealthFormatter {
         console.error('no node id in record', record);
         return;
       }
-      let recorded_at = moment(new Date(record.data.sent_at*1000));
+      let recorded_at = moment(new Date(record.data.sent_at*1000)).utc();
       return [
         record.received_at.format(this.date_format),
         record.channel,
@@ -52,7 +52,7 @@ class NodeHealthFormatter {
         record.data.temp_c,
         recorded_at.format(this.date_format),
         record.data.fw,
-        record.data.sol_v,
+        record.data.sol_v / 100,
         record.data.sol_ma,
         record.data.sum_sol_ma,
         record.data.lat ? record.data.lat / 1000000 : '',
@@ -73,6 +73,7 @@ class NodeHealthFormatter {
         record.data.node_alive.celsius, 
         '',
         record.data.node_alive.firmware,
+        '',
         '',
         '',
         '',

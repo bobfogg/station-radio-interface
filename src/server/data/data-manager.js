@@ -3,7 +3,10 @@ import { Logger } from './logger';
 import { BeepFormatter } from './beep-formatter';
 import { GpsFormatter } from './gps-formatter';
 import { NodeHealthFormatter } from './node-health-formatter';
+import { TelemetryFormatter } from './telemetry-formatter';
 import { Uploader } from './uploader';
+import { BeepStatManager } from './beep-stat-manager';
+
 /**
  * manager class for incoming beep packets
  */
@@ -20,7 +23,7 @@ class DataManager {
       station_id: this.id,
       credentials_uri: '/etc/ctt/ctt.conf'
     });
-    //this.uploader.watch('/data/rotated');
+    this.stats = new BeepStatManager();
 
     // utility for maintaining filenames for given id, descriptor (suffix)
     this.file_manager = new FileManager({
@@ -50,6 +53,13 @@ class DataManager {
         formatter: new NodeHealthFormatter({
           date_format: this.date_format
         })
+      }),
+      telemetry: new Logger({
+        fileuri: this.file_manager.getFileUri('telemetry'),
+        suffix: 'telemetry',
+        formatter: new TelemetryFormatter({
+          date_format: this.date_format
+        })
       })
     }
   }
@@ -69,41 +79,51 @@ class DataManager {
    * @param {*} beep 
    */
   handleRadioBeep(beep) {
+    let record, id, stats;
     if (beep.meta) {
       // expect new protocol
       switch (beep.meta.data_type) {
         case 'coded_id': {
-          this.loggers.beep.addRecord(beep);
+          record = this.loggers.beep.addRecord(beep);
+          this.stats.addBeep(record);
           break;
         }
         case 'node_coded_id': {
-          this.loggers.beep.addRecord(beep);
+          record = this.loggers.beep.addRecord(beep);
+          this.stats.addBeep(record);
           break;
         }
         case 'node_health': {
-          this.loggers.node_health.addRecord(beep);
+          record = this.loggers.node_health.addRecord(beep);
+          this.stats.addNodeHealth(record);
+          break;
+        }
+        case 'telemetry': {
+          record = this.loggers.telemetry.addRecord(beep);
+          this.stats.addTelemetryBeep(record);
           break;
         }
         default: {
-          console.error(`i don't know what to do with this record ${beep}`);
+          console.log(beep);
+          console.error(`i don't know what to do with this record`);
           break;
         }
       }
     } else {
       // handle original protocol
       if (beep.data.node_alive) {
-        this.loggers.node_health.addRecord(beep);
-        return;
+        console.log('OLD HEALTH');
+        record = this.loggers.node_health.addRecord(beep);
+        this.stats.addNodeHealth(record);
       }
       if (beep.data.node_beep) {
-        this.loggers.beep.addRecord(beep);
-        return;
+        record = this.loggers.beep.addRecord(beep);
+        this.stats.addBeep(record);
       }
       if (beep.data.tag) {
-        this.loggers.beep.addRecord(beep);
-        return;
+        record = this.loggers.beep.addRecord(beep);
+        this.stats.addBeep(record);
       };
-      console.error('uknown record here', beep);
     }
   }
 

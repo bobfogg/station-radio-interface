@@ -5,19 +5,21 @@
   "main": "lib/index.js",
   "scripts": {
     "start": "node lib/index.js",
+    "debug": "node --inspect lib/index",
     "compile": "babel src -d lib --source-maps --watch",
     "build": "babel src -d lib",
     "dev": "node --inspect lib/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "server-checkin": "node ./lib/test/checkin.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://bitbucket.org/cellulartrackingtechnologies/station-radio-interface"
+    "url": "https://github.com/cellular-tracking-technologies/station-radio-interface.git"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "aws-sdk": "^2.654.0",
+    "aws-sdk": "^2.656.0",
     "glob": "^7.1.4",
     "heartbeats": "^5.0.1",
     "lodash": "^4.17.15",

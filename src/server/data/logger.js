@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const _ = require('lodash');
 
 /**
  * generic logger class is intended receive data records, buffer to cache
@@ -31,10 +32,15 @@ class Logger {
    * @param {record} record to add to cache, to be parsed by provided formatter
    */
   addRecord(record) {
+    let data;
     let line = this.formatter.formatRecord(record);
     if (line) {
       this.record_cache.push(line);
+      data = _.zipObject(this.formatter.header, line)
+    } else {
+      data = {}
     }
+    return data
   }
 
   /**
@@ -53,6 +59,7 @@ class Logger {
         if (!fs.existsSync(this.fileuri)) {
           lines.unshift(this.formatter.header.join(','));
         }
+        console.log('writing cache to disk', this.fileuri);
         fs.appendFile(this.fileuri, lines.join(this.line_terminator)+this.line_terminator, (err) => {
           if (err) {
             reject(err);

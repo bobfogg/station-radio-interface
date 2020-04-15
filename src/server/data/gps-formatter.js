@@ -29,11 +29,11 @@ class GpsFormatter {
    */
   formatRecord(record) {
     let fields;
-    let now = moment(new Date()).format(this.date_format);
+    let now = moment(new Date()).utc().format(this.date_format);
     if (record.gps) {
       fields = [
         now,
-        moment(record.gps.time).format(this.date_format),
+        moment(record.gps.time).utc().format(this.date_format),
         record.gps.lat.toFixed(this.gps_precision),
         record.gps.lon.toFixed(this.gps_precision),
         record.gps.alt,
