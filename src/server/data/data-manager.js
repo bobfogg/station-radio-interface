@@ -112,7 +112,6 @@ class DataManager {
     } else {
       // handle original protocol
       if (beep.data.node_alive) {
-        console.log('OLD HEALTH');
         record = this.loggers.node_health.addRecord(beep);
         this.stats.addNodeHealth(record);
       }
@@ -148,27 +147,14 @@ class DataManager {
           fileuri: logger.fileuri,
           new_basename: this.file_manager.getFileName(logger.suffix)
         })
-        .then((rotated_uri) => {
-          // rotated file
-          if (rotated_uri) {
-            return this.uploader.uploadCttFile(rotated_uri)
-            .then((res) => {
-              if (res.etag) {
-                // upload success!
-                return this.file_manager.rotateUpload(res.fileuri);
-              }
-            })
-          } else {
-            // no rotated uri
-            return Promise.resolve(false);
-          }
-        })
+        .then(rotate_response => Promise.resolve(true))
         .catch((err) => {
           console.error(`problem rotating file ${logger.fileuri}`);
           console.error(err);
         });
       });
-    }, Promise.resolve(true));
+    }, Promise.resolve(true))
+    .then(res => console.log('finished rotating data files'));
   }
 }
 
