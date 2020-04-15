@@ -3,7 +3,7 @@ const os = require('os');
 
 class ServerApi {
   constructor() {
-    this.endpoint = "http://wildlife-debug.celltracktech.net:8014/station/v2/checkin/"
+    this.endpoint = "https://account.celltracktech.com/station/v2/checkin/"
     this.hardware_endpoint = "http://localhost:3000/";
     this.details = [
       'modem',
