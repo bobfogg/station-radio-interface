@@ -64,14 +64,12 @@ class ServerApi {
       Object.keys(channel_data.beeps).forEach((tag) => {
         let cnt = channel_data.beeps[tag];
         if (cnt < 5) {
-          console.log('removing tag info for', tag, cnt);
           delete channel_data.beeps[tag];
         }
       });
       Object.keys(channel_data.nodes.beeps).forEach((tag) => {
         let cnt = channel_data.nodes.beeps[tag];
         if (cnt < 5) {
-          console.log('removing node tag for', tag, cnt);
           delete channel_data.nodes.beeps[tag];
         }
       });
@@ -97,10 +95,10 @@ class ServerApi {
       .then((data) => {
         let v1_checkin_data = data //this.downgrade(data);
         v1_checkin_data.stats = this.filterStats(stats);
+        let gps_time = data.gps.gps.time;
         data.gps = data.gps.mean;
+        data.gps.time = gps_time;
         data.sensor = this.sensor_data;
-        console.log(JSON.stringify(data, null, 2))
-        console.log('about to check in');
         fetch(this.endpoint, {
           method: 'POST',
           body: JSON.stringify(data),
