@@ -119,7 +119,7 @@ class BaseStation {
           this.broadcast(JSON.stringify(stats));
           break;
         case('checkin'):
-          console.log('about to check in')
+          this.checkin();
           break;
         case('upload'):
           console.log('uploading all data files');
@@ -169,8 +169,19 @@ class BaseStation {
   }
 
   checkin() {
+    this.log('server checkin initiated');
     console.log('checking in');
-    this.server_api.healthCheckin(this.data_manager.stats.stats);
+    this.server_api.healthCheckin(this.data_manager.stats.stats)
+    .then((response) => {
+      if (response.status == 'ok') {
+        this.log('server checkin success');
+      } else {
+        this.log('checkin fail', response);
+      }
+    })
+    .catch((err) => {
+      this.log('server checkin error', err.toString());
+    });
   }
 
   /**

@@ -78,48 +78,54 @@ class ServerApi {
   }
 
   healthCheckin(stats) {
-    let promises = [];
-    this.details.forEach((post) => {
-      let uri = `${this.hardware_endpoint}${post}`
-      promises.push(fetch(uri).then(res => res.json()));
-    });
-    Promise.all(promises)
-      .then((responses) => {
-        return {
-          'modem': responses[0],
-          //'peripherals': responses[2],
-          'gps': responses[2],
-          'about': responses[3]
-        }
-      })
-      .then((data) => {
-        let v1_checkin_data = data //this.downgrade(data);
-        v1_checkin_data.stats = this.filterStats(stats);
-        let gps_time = data.gps.gps.time;
-        data.gps = data.gps.mean;
-        data.gps.time = gps_time;
-        data.sensor = this.sensor_data;
-        fetch(this.endpoint, {
-          method: 'POST',
-          body: JSON.stringify(data),
-          headers: { 'Content-Type': 'application/json' }
+    return new Promise((resolve, reject) => {
+
+      let promises = [];
+      this.details.forEach((post) => {
+        let uri = `${this.hardware_endpoint}${post}`
+        promises.push(fetch(uri).then(res => res.json()));
+      });
+      return Promise.all(promises)
+        .then((responses) => {
+          return {
+            'modem': responses[0],
+            //'peripherals': responses[2],
+            'gps': responses[2],
+            'about': responses[3]
+          }
         })
-        .then(res => res.json())
-        .then((json) => {
-          // we have a successful server checkin - clear sensor data
-          this.sensor_data = [];
-          console.log('checkin success!');
-          console.log(json);
+        .then((data) => {
+          let v1_checkin_data = data //this.downgrade(data);
+          v1_checkin_data.stats = this.filterStats(stats);
+          let gps_time = data.gps.gps.time;
+          data.gps = data.gps.mean;
+          data.gps.time = gps_time;
+          data.sensor = this.sensor_data;
+          fetch(this.endpoint, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: { 'Content-Type': 'application/json' }
+          })
+          .then(res => res.json())
+          .then((json) => {
+            // we have a successful server checkin - clear sensor data
+            this.sensor_data = [];
+            console.log('checkin success!');
+            console.log(json);
+            resolve(json)
+          })
+          .catch((err) => {
+            console.log('unable to check into server')
+            console.error(err);
+            reject(err)
+          })
         })
         .catch((err) => {
-          console.log('unable to check into server')
           console.error(err);
-        })
-      })
-      .catch((err) => {
-        console.error(err);
-        console.error('error getting station details');
-      });
+          console.error('error getting station details');
+          reject(err)
+        });
+    });
   }
 }
 
