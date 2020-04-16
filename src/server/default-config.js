@@ -46,7 +46,6 @@ export default {
         checkin_frequency_minutes: 10,
         sensor_data_frequency_minutes: 1,
         rotation_frequency_minutes: 60,
-        upload_frequency_minutes: 60,
         base_log_directory: "/data",
         mobile: false
     },

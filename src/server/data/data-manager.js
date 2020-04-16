@@ -4,7 +4,6 @@ import { BeepFormatter } from './beep-formatter';
 import { GpsFormatter } from './gps-formatter';
 import { NodeHealthFormatter } from './node-health-formatter';
 import { TelemetryFormatter } from './telemetry-formatter';
-import { Uploader } from './uploader';
 import { BeepStatManager } from './beep-stat-manager';
 
 /**
@@ -19,10 +18,6 @@ class DataManager {
     this.id = opts.id;
     this.base_log_dir = opts.base_log_dir;
     this.date_format = opts.date_format;
-    this.uploader = new Uploader({
-      station_id: this.id,
-      credentials_uri: '/etc/ctt/ctt.conf'
-    });
     this.stats = new BeepStatManager();
 
     // utility for maintaining filenames for given id, descriptor (suffix)

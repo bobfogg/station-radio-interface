@@ -60,33 +60,6 @@ export class FileManager {
 
   /**
    * 
-   * @param {*} fileuri 
-   */
-  rotateUpload(fileuri) {
-    return new Promise((resolve, reject) => {
-      let basename = path.posix.basename(fileuri);
-      let new_directory = path.join('/', 'data', 'uploaded');
-      let newuri = path.join(new_directory, basename);
-      console.log('rotating to', newuri, 'from', fileuri);
-
-      // make sure uploaded directory exists
-      fs.mkdirSync(new_directory, {
-        recursive: true
-      });
-
-      // move to the uploaded uri
-      fs.rename(fileuri, newuri, (err) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve(newuri);
-      });
-    });
-  }
-
-  /**
-   * 
    * @param {opts.fileuri} fileuri 
    * @param {opts.new_basename} new_basename 
    */
