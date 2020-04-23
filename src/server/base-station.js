@@ -4,6 +4,7 @@ import { GpsClient } from './gps-client';
 import { StationConfig } from './station-config';
 import { DataManager } from './data/data-manager';
 import { ServerApi } from './http/server-api';
+import { StationLeds } from './led/station-leds';
 const fetch = require('node-fetch');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -24,6 +25,7 @@ class BaseStation {
   constructor(config_filename) {
     this.config = new StationConfig(config_filename);
     this.active_radios = {};
+    this.station_leds = new StationLeds();
     this.gps_client = new  GpsClient({
       max_gps_records: 50
     });
@@ -77,6 +79,7 @@ class BaseStation {
           this.startWebsocketServer();
           this.startTimers();
           this.startRadios();
+          this.toggleLeds();
         });
       });
     });
@@ -122,27 +125,10 @@ class BaseStation {
           this.checkin();
           break;
         case('upload'):
-          console.log('uploading all data files');
+          this.runCommand('upload-station-data');
           break
         case('update-station'):
-          const update = spawn('update-station');
-          update.stdout.on('data', (data) => {
-            let msg = {
-              data: data.toString(),
-              msg_type: 'log'
-            }
-            this.broadcast(JSON.stringify(msg));
-          });
-          update.stderr.on('data', (data) => {
-            let msg = {
-              data: data.toString(),
-              msg_type: 'log'
-            }
-            this.broadcast(JSON.stringify(msg));
-          });
-          update.on('close', (code) => {
-            console.log('finished station update', code);
-          });
+          this.runCommand('update-station');
           break;
         case('about'):
           fetch('http://localhost:3000/about')
@@ -168,6 +154,27 @@ class BaseStation {
     })
   }
 
+  runCommand(cmd) {
+    const command_process = spawn('cmd');
+    command_process.stdout.on('data', (data) => {
+      let msg = {
+        data: data.toString(),
+        msg_type: 'log'
+      }
+      this.broadcast(JSON.stringify(msg));
+    });
+    command_process.stderr.on('data', (data) => {
+      let msg = {
+        data: data.toString(),
+        msg_type: 'log'
+      }
+      this.broadcast(JSON.stringify(msg));
+    });
+    command_process.on('close', (code) => {
+      console.log('finished running', cmd, code);
+    });
+  }
+
   checkin() {
     this.log('server checkin initiated');
     console.log('checking in');
@@ -184,6 +191,10 @@ class BaseStation {
     });
   }
 
+  toggleLeds() {
+    this.station_leds.toggleAll(this.gps_client.latest_gps_fix);
+  }
+
   /**
    * start timers for writing data to disk, collecting GPS data
    */
@@ -192,6 +203,7 @@ class BaseStation {
     this.heartbeat.createEvent(this.config.data.record.rotation_frequency_minutes*60, this.data_manager.rotate.bind(this.data_manager));
     this.heartbeat.createEvent(this.config.data.record.sensor_data_frequency_minutes*60, this.server_api.pollSensors.bind(this.server_api));
     this.heartbeat.createEvent(this.config.data.record.checkin_frequency_minutes*60, this.checkin.bind(this));
+    this.heartbeat.createEvent(5, this.toggleLeds.bind(this));
     if (this.config.data.record.enabled === true) {
       // start data write to disk timer
       this.heartbeat.createEvent(this.config.data.record.flush_data_cache_seconds, this.data_manager.writeCache.bind(this.data_manager));
