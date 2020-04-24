@@ -125,7 +125,7 @@ class BaseStation {
           this.checkin();
           break;
         case('upload'):
-          this.runCommand('upload-station-data');
+          this.runCommand('/usr/bin/upload-station-data');
           break
         case('update-station'):
           this.runCommand('update-station');
@@ -156,6 +156,7 @@ class BaseStation {
 
   runCommand(cmd) {
     const command_process = spawn('cmd');
+    console.log('about to run ', cmd);
     command_process.stdout.on('data', (data) => {
       let msg = {
         data: data.toString(),
@@ -173,6 +174,10 @@ class BaseStation {
     command_process.on('close', (code) => {
       console.log('finished running', cmd, code);
     });
+    command_process.on('error', (err) => {
+      console.error('command error');
+      console.error(err);
+    })
   }
 
   /**
