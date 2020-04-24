@@ -10,7 +10,8 @@ class ServerApi {
       'sensor/details',
       //'peripherals',
       'gps',
-      'about'
+      'about',
+      'internet/pending-upload'
     ]
     this.sensor_data = [];
     this.max_sensor_records = 100;
@@ -91,7 +92,8 @@ class ServerApi {
             'modem': responses[0],
             //'peripherals': responses[2],
             'gps': responses[2],
-            'about': responses[3]
+            'about': responses[3],
+            'uploads': responses[4]
           }
         })
         .then((data) => {
@@ -101,6 +103,7 @@ class ServerApi {
           data.gps = data.gps.mean;
           data.gps.time = gps_time;
           data.sensor = this.sensor_data;
+          console.log(data);
           fetch(this.endpoint, {
             method: 'POST',
             body: JSON.stringify(data),
