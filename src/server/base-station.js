@@ -273,10 +273,6 @@ class BaseStation {
     msgs.unshift(moment(new Date()).utc().format(this.date_format));
   }
 
-  getStationConfig() {
-
-  }
-
   /**
    * start the radio receivers
    */
