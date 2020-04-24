@@ -175,6 +175,9 @@ class BaseStation {
     });
   }
 
+  /**
+   * checkin to the server
+   */
   checkin() {
     this.log('server checkin initiated');
     console.log('checking in');
@@ -191,6 +194,9 @@ class BaseStation {
     });
   }
 
+  /**
+   * control on-board LEDs
+   */
   toggleLeds() {
     this.station_leds.toggleAll(this.gps_client.latest_gps_fix);
   }
