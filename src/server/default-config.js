@@ -43,8 +43,8 @@ export default {
         enabled: true,
         date_format: "YYYY-MM-DD HH:mm:ss",
         flush_data_cache_seconds: 5,
-        checkin_frequency_minutes: 10,
-        sensor_data_frequency_minutes: 1,
+        checkin_frequency_minutes: 60*6,
+        sensor_data_frequency_minutes: 60,
         rotation_frequency_minutes: 60,
         base_log_directory: "/data",
         mobile: false
@@ -52,6 +52,6 @@ export default {
     gps: {
         enabled: true,
         record: true,
-        seconds_between_fixes: 60
+        seconds_between_fixes: 60*10
     }
 };
