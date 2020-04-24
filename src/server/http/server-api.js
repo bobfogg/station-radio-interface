@@ -59,7 +59,6 @@ class ServerApi {
   }
 
   filterStats(stats) {
-    console.log('filtering tags');
     Object.keys(stats.channels).forEach((channel) => {
       let channel_data = stats.channels[channel];
       Object.keys(channel_data.beeps).forEach((tag) => {
@@ -103,7 +102,6 @@ class ServerApi {
           data.gps = data.gps.mean;
           data.gps.time = gps_time;
           data.sensor = this.sensor_data;
-          console.log(data);
           fetch(this.endpoint, {
             method: 'POST',
             body: JSON.stringify(data),
