@@ -126,8 +126,6 @@ class ServerApi {
           .then((json) => {
             // we have a successful server checkin - clear sensor data
             this.sensor_data = [];
-            console.log('checkin success!');
-            console.log(json);
             resolve(json)
           })
           .catch((err) => {
