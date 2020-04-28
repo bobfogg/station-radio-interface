@@ -41,6 +41,7 @@ export default {
     },
     record: {
         enabled: true,
+        alive_frequency_seconds: 60*10,
         date_format: "YYYY-MM-DD HH:mm:ss",
         flush_data_cache_seconds: 5,
         checkin_frequency_minutes: 60*6,
@@ -48,6 +49,9 @@ export default {
         rotation_frequency_minutes: 60,
         base_log_directory: "/data",
         mobile: false
+    },
+    led: {
+        toggle_frequency_seconds: 10
     },
     gps: {
         enabled: true,

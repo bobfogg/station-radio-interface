@@ -46,6 +46,14 @@ class BaseStation {
   }
 
   /**
+   * 
+   * @param  {...any} msgs wrapper for data logger
+   */
+  stationLog(...msgs) {
+    this.data_manager.log(msgs);
+  }
+
+  /**
    * load config - start the data manager, gps client, web socket server, timers, radios
    */
   init() {
@@ -56,7 +64,7 @@ class BaseStation {
       this.config.save().catch((err) => {
         // there was an error saving this config file ... cannot handle persistent storage
         console.error(err);
-        this.data_manager.log('error saving config to disk');
+        this.stationLog('error saving config to disk');
       }).then(() => {
         this.date_format = this.config.data.record.date_format;
         // config loaded / merged with defaults / saved to disk - start the software
@@ -75,7 +83,7 @@ class BaseStation {
           this.log_file_uri = path.join(base_log_dir, this.log_filename);
 
           this.gps_client.start();
-          this.data_manager.log('initializing base station');
+          this.stationLog('initializing base station');
           this.startWebsocketServer();
           this.startTimers();
           this.startRadios();
@@ -87,7 +95,7 @@ class BaseStation {
 
   toggleRadioMode(opts) {
     if (opts.channel in Object.keys(this.active_radios)) {
-      this.data_manager.log(`toggling ${opts.mode} mode on channel ${opts.channel}`);
+      this.stationLog(`toggling ${opts.mode} mode on channel ${opts.channel}`);
       let radio = this.active_radios[opts.channel];
       this.config.toggleRadioMode({
         channel: opts.channel,
@@ -95,7 +103,7 @@ class BaseStation {
       });
       radio.issuePresetCommand(opts.mode)
     } else {
-      this.data_manager.log(`invalid radio channel ${opts.channel}`);
+      this.stationLog(`invalid radio channel ${opts.channel}`);
     }
   }
 
@@ -149,7 +157,7 @@ class BaseStation {
         }
     });
     this.sensor_socket_server.on('client_conn', (ip) => {
-      this.log(`client connected from IP: ${ip}`);
+      this.stationLog(`client connected from IP: ${ip}`);
     })
   }
 
@@ -159,13 +167,13 @@ class BaseStation {
    */
   runCommand(cmd) {
     const command_process = spawn(cmd);
-    this.data_manager.log('running command', cmd);
+    this.stationLog('running command', cmd);
     command_process.stdout.on('data', (data) => {
       let msg = {
         data: data.toString(),
         msg_type: 'log'
       }
-      this.data_manager.log(data);
+      this.stationLog(data);
       this.broadcast(JSON.stringify(msg));
     });
     command_process.stderr.on('data', (data) => {
@@ -173,16 +181,16 @@ class BaseStation {
         data: data.toString(),
         msg_type: 'log'
       }
-      this.data_manager.log('stderr', data);
+      this.stationLog('stderr', data);
       this.broadcast(JSON.stringify(msg));
     });
     command_process.on('close', (code) => {
-      this.data_manager.log('finished running', cmd, code);
+      this.stationLog('finished running', cmd, code);
     });
     command_process.on('error', (err) => {
       console.error('command error');
       console.error(err);
-      this.data_manager.log('command error', err.toString())
+      this.stationLog('command error', err.toString())
     })
   }
 
@@ -190,7 +198,7 @@ class BaseStation {
    * checkin to the server
    */
   checkin() {
-    this.data_manager.log('server checkin initiated');
+    this.stationLog('server checkin initiated');
     this.server_api.checkInternet()
       .then((internet_status) => {
       if (internet_status == true) {
@@ -198,16 +206,16 @@ class BaseStation {
         this.server_api.healthCheckin(this.data_manager.stats.stats)
         .then((response) => {
           if (response.status == 'ok') {
-            this.data_manager.log('server checkin success');
+            this.stationLog('server checkin success');
           } else {
-            this.data_manager.log('checkin fail', response);
+            this.stationLog('checkin fail', response);
           }
         })
         .catch((err) => {
-          this.data_manager.log('server checkin error', err.toString());
+          this.stationLog('server checkin error', err.toString());
         });
       } else {
-        this.data_manager.log('no internet - ignoring checkin');
+        this.stationLog('no internet - ignoring server checkin');
       }
     });
   }
@@ -220,6 +228,13 @@ class BaseStation {
   }
 
   /**
+   * 
+   */
+  writeAliveMsg() {
+    this.stationLog('alive');
+  }
+
+  /**
    * start timers for writing data to disk, collecting GPS data
    */
   startTimers() {
@@ -229,7 +244,8 @@ class BaseStation {
     this.heartbeat.createEvent(this.config.data.record.rotation_frequency_minutes*60, this.data_manager.rotate.bind(this.data_manager));
     this.heartbeat.createEvent(this.config.data.record.sensor_data_frequency_minutes*60, this.server_api.pollSensors.bind(this.server_api));
     this.heartbeat.createEvent(this.config.data.record.checkin_frequency_minutes*60, this.checkin.bind(this));
-    this.heartbeat.createEvent(5, this.toggleLeds.bind(this));
+    this.heartbeat.createEvent(this.config.data.led.toggle_frequency_seconds, this.toggleLeds.bind(this));
+    this.heartbeat.createEvent(this.config.data.record.alive_frequency_seconds, this.writeAliveMsg.bind(this));
     if (this.config.data.record.enabled === true) {
       // start data write to disk timer
       this.heartbeat.createEvent(this.config.data.record.flush_data_cache_seconds, this.data_manager.writeCache.bind(this.data_manager));
@@ -288,7 +304,7 @@ class BaseStation {
    * start the radio receivers
    */
   startRadios() {
-    this.data_manager.log('starting radio receivers');
+    this.stationLog('starting radio receivers');
     this.config.data.radios.forEach((radio) => {
       let beep_reader = new RadioReceiver({
         baud_rate: 115200,
@@ -303,7 +319,7 @@ class BaseStation {
         this.broadcast(JSON.stringify(beep));
       });
       beep_reader.on('open', (info) => {
-        this.data_manager.log('opened radio on port', info.port_uri);
+        this.stationLog('opened radio on port', radio.channel);
         this.active_radios[info.port_uri] = info;
         beep_reader.issueCommands(radio.config);
       });
