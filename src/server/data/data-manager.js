@@ -1,10 +1,12 @@
 import { FileManager } from './file-manager';
 import { Logger } from './logger';
 import { BeepFormatter } from './beep-formatter';
+import { LogFormatter } from './log-formatter';
 import { GpsFormatter } from './gps-formatter';
 import { NodeHealthFormatter } from './node-health-formatter';
 import { TelemetryFormatter } from './telemetry-formatter';
 import { BeepStatManager } from './beep-stat-manager';
+const moment = require('moment');
 
 /**
  * manager class for incoming beep packets
@@ -28,6 +30,13 @@ class DataManager {
 
     // loggers for each data file
     this.loggers = {
+      log: new Logger({
+        fileuri: this.file_manager.getFileUri('log'),
+        suffix: 'log',
+        formatter: new LogFormatter({
+          date_format: this.date_format
+        })
+      }),
       beep: new Logger({
         fileuri: this.file_manager.getFileUri('raw-data'),
         suffix: 'raw-data',
@@ -67,6 +76,15 @@ class DataManager {
       let logger = this.loggers[key];
       logger.writeCacheToDisk();
     });
+  }
+
+  /**
+   * 
+   * @param {*} msg - general message to log
+   */
+  log(...msgs) {
+    msgs.unshift(moment(new Date).utc().format(this.date_format));
+    this.loggers.log.addRecord(msgs.join(','));
   }
 
   /**

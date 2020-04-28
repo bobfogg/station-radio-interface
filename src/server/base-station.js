@@ -56,7 +56,7 @@ class BaseStation {
       this.config.save().catch((err) => {
         // there was an error saving this config file ... cannot handle persistent storage
         console.error(err);
-        this.record('error saving config to disk');
+        this.data_manager.log('error saving config to disk');
       }).then(() => {
         this.date_format = this.config.data.record.date_format;
         // config loaded / merged with defaults / saved to disk - start the software
@@ -75,7 +75,7 @@ class BaseStation {
           this.log_file_uri = path.join(base_log_dir, this.log_filename);
 
           this.gps_client.start();
-          this.record('initializing base station');
+          this.data_manager.log('initializing base station');
           this.startWebsocketServer();
           this.startTimers();
           this.startRadios();
@@ -87,7 +87,7 @@ class BaseStation {
 
   toggleRadioMode(opts) {
     if (opts.channel in Object.keys(this.active_radios)) {
-      this.record(`toggling ${opts.mode} mode on channel ${opts.channel}`);
+      this.data_manager.log(`toggling ${opts.mode} mode on channel ${opts.channel}`);
       let radio = this.active_radios[opts.channel];
       this.config.toggleRadioMode({
         channel: opts.channel,
@@ -95,7 +95,7 @@ class BaseStation {
       });
       radio.issuePresetCommand(opts.mode)
     } else {
-      this.record(`invalid radio channel ${opts.channel}`);
+      this.data_manager.log(`invalid radio channel ${opts.channel}`);
     }
   }
 
@@ -116,7 +116,6 @@ class BaseStation {
           });
           break;
         case('stats'):
-          console.log('stat request');
           let stats = this.data_manager.stats.stats;
           stats.msg_type = 'stats';
           this.broadcast(JSON.stringify(stats));
@@ -154,14 +153,19 @@ class BaseStation {
     })
   }
 
+  /**
+   * 
+   * @param {*} cmd - run a given bash command and pipe output to web socket
+   */
   runCommand(cmd) {
     const command_process = spawn(cmd);
-    console.log('about to run ', cmd);
+    this.data_manager.log('running command', cmd);
     command_process.stdout.on('data', (data) => {
       let msg = {
         data: data.toString(),
         msg_type: 'log'
       }
+      this.data_manager.log(data);
       this.broadcast(JSON.stringify(msg));
     });
     command_process.stderr.on('data', (data) => {
@@ -169,14 +173,16 @@ class BaseStation {
         data: data.toString(),
         msg_type: 'log'
       }
+      this.data_manager.log('stderr', data);
       this.broadcast(JSON.stringify(msg));
     });
     command_process.on('close', (code) => {
-      console.log('finished running', cmd, code);
+      this.data_manager.log('finished running', cmd, code);
     });
     command_process.on('error', (err) => {
       console.error('command error');
       console.error(err);
+      this.data_manager.log('command error', err.toString())
     })
   }
 
@@ -184,18 +190,25 @@ class BaseStation {
    * checkin to the server
    */
   checkin() {
-    this.log('server checkin initiated');
-    console.log('checking in');
-    this.server_api.healthCheckin(this.data_manager.stats.stats)
-    .then((response) => {
-      if (response.status == 'ok') {
-        this.log('server checkin success');
+    this.data_manager.log('server checkin initiated');
+    this.server_api.checkInternet()
+      .then((internet_status) => {
+      if (internet_status == true) {
+        // we have internet - check into server
+        this.server_api.healthCheckin(this.data_manager.stats.stats)
+        .then((response) => {
+          if (response.status == 'ok') {
+            this.data_manager.log('server checkin success');
+          } else {
+            this.data_manager.log('checkin fail', response);
+          }
+        })
+        .catch((err) => {
+          this.data_manager.log('server checkin error', err.toString());
+        });
       } else {
-        this.log('checkin fail', response);
+        this.data_manager.log('no internet - ignoring checkin');
       }
-    })
-    .catch((err) => {
-      this.log('server checkin error', err.toString());
     });
   }
 
@@ -211,6 +224,8 @@ class BaseStation {
    */
   startTimers() {
     // start data rotation timer
+    // checkin after 10 seconds of station running
+    setTimeout(this.checkin.bind(this), 10000);
     this.heartbeat.createEvent(this.config.data.record.rotation_frequency_minutes*60, this.data_manager.rotate.bind(this.data_manager));
     this.heartbeat.createEvent(this.config.data.record.sensor_data_frequency_minutes*60, this.server_api.pollSensors.bind(this.server_api));
     this.heartbeat.createEvent(this.config.data.record.checkin_frequency_minutes*60, this.checkin.bind(this));
@@ -262,21 +277,6 @@ class BaseStation {
 
   /**
    * 
-   * @param  {...any} msgs - write data to log and broadcast across web socket server
-   */
-  record(...msgs) {
-    this.broadcast(JSON.stringify({'msg_type': 'log', 'data': msgs.join(' ')}));
-    msgs.unshift(moment(new Date()).utc().format(this.date_format));
-    let line = msgs.join(' ') + '\r\n';
-    try {
-      fs.appendFileSync(this.log_file_uri, line);
-    } catch(err) {
-      console.error(err);
-    }
-  }
-
-  /**
-   * 
    * @param  {...any} msgs - broadcast data across web socket server
    */
   log(...msgs) {
@@ -288,7 +288,7 @@ class BaseStation {
    * start the radio receivers
    */
   startRadios() {
-    this.record('starting radio receivers');
+    this.data_manager.log('starting radio receivers');
     this.config.data.radios.forEach((radio) => {
       let beep_reader = new RadioReceiver({
         baud_rate: 115200,
@@ -303,7 +303,7 @@ class BaseStation {
         this.broadcast(JSON.stringify(beep));
       });
       beep_reader.on('open', (info) => {
-        this.record('opened radio on port', info.port_uri);
+        this.data_manager.log('opened radio on port', info.port_uri);
         this.active_radios[info.port_uri] = info;
         beep_reader.issueCommands(radio.config);
       });

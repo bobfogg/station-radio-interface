@@ -36,7 +36,7 @@ class ServerApi {
         sim: info.modem.sim
       },
       module: {
-        bootcount: 0,
+        bootcount: info.bootcount,
         hardware: info.about.hardware,
         serial: info.about.serial,
         revision: info.about.revision,
@@ -77,6 +77,21 @@ class ServerApi {
     return stats;
   }
 
+  checkInternet() {
+    return fetch(`${this.hardware_endpoint}internet/status`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success == 3) {
+          return true; 
+        }
+      })
+      .catch((err) => {
+        console.error('error checking internet status');
+        console.error(err);
+        return false;
+      })
+  }
+
   healthCheckin(stats) {
     return new Promise((resolve, reject) => {
 
@@ -96,7 +111,7 @@ class ServerApi {
           }
         })
         .then((data) => {
-          let v1_checkin_data = data //this.downgrade(data);
+          let v1_checkin_data = data 
           v1_checkin_data.stats = this.filterStats(stats);
           let gps_time = data.gps.gps.time;
           data.gps = data.gps.mean;
