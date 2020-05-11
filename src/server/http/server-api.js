@@ -29,35 +29,6 @@ class ServerApi {
       });
   }
 
-  downgrade(info) {
-    return {
-      modem: {
-        imei: info.modem.imei,
-        sim: info.modem.sim
-      },
-      module: {
-        bootcount: info.bootcount,
-        hardware: info.about.hardware,
-        serial: info.about.serial,
-        revision: info.about.revision,
-        loadavg_15min: info.about.loadavg_15min,
-        free_mem: info.about.free_mem,
-        uptime: info.about.uptime,
-        disk_available: info.about.disk_usage.available,
-        disk_total: info.about.disk_usage.total
-      },
-      gps: {
-        lat: info.gps.mean.lat,
-        lng: info.gps.mean.lng,
-        time: info.gps.gps.time
-      },
-      sensor: this.sensor_data,
-      beep_count: 0,
-      unique_tags: 0,
-      node_count: 0
-    }
-  }
-
   filterStats(stats) {
     Object.keys(stats.channels).forEach((channel) => {
       let channel_data = stats.channels[channel];
