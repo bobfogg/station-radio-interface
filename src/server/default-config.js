@@ -56,6 +56,6 @@ export default {
     gps: {
         enabled: true,
         record: true,
-        seconds_between_fixes: 60*10
+        seconds_between_fixes: 60*15
     }
 };
