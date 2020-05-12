@@ -34,29 +34,19 @@ class StationLeds {
         }
       }
     } else {
-      console.log('no gps data provided');
       this.led_driver.toggleGps({state: 'off'});
     }
 
   }
 
   toggleInternet() {
-    fetch('http://localhost:3000/internet/status?ping_count='+this.ping_count)
+    fetch('http://localhost:3000/modem/ppp')
     .then(res => res.json())
     .then(json => {
-      switch (json.success) {
-        case 3:
+      if (json.ppp == true) {
           this.led_driver.toggleDiagB({ state: 'on'})
-          break;
-        case 2:
-          this.led_driver.toggleDiagB({ state: 'blink', blink_ms: 500})
-          break;
-        case 1:
-          this.led_driver.toggleDiagB({ state: 'blink', blink_ms: 200})
-          break;
-        case 0:
+      } else {
           this.led_driver.toggleDiagB({ state: 'off'})
-          break;
       }
     })
     .catch((err) => {
@@ -71,7 +61,7 @@ class StationLeds {
 
   toggleAll(gps) {
     this.toggleGps(gps);
-    // this.toggleInternet();
+    this.toggleInternet();
     this.toggleOperational();
   }
 }
