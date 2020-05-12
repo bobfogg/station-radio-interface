@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const os = require('os');
+const moment = require('moment');
 
 class ServerApi {
   constructor() {
@@ -21,6 +21,8 @@ class ServerApi {
     let uri = `${this.hardware_endpoint}sensor/details`
     fetch(uri).then(res => res.json())
       .then((data) => {
+        let now = moment();
+        data.received_at = now.toISOString();
         this.sensor_data.push(data);
         if (this.sensor_data.length > this.max_sensor_records) {
           // only store up to a maximum number of sensor records
