@@ -51,7 +51,7 @@ export default {
         mobile: false
     },
     led: {
-        toggle_frequency_seconds: 10
+        toggle_frequency_seconds: 1
     },
     gps: {
         enabled: true,
