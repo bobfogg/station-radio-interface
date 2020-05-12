@@ -3,7 +3,7 @@ const os = require('os');
 
 class ServerApi {
   constructor() {
-    this.endpoint = "https://account.celltracktech.com/station/v2/checkin/"
+    this.endpoint = "http://station.internetofwildlife.com/station/v2/checkin/"
     this.hardware_endpoint = "http://localhost:3000/";
     this.details = [
       'modem',
@@ -88,16 +88,21 @@ class ServerApi {
           data.gps = data.gps.mean;
           data.gps.time = gps_time;
           data.sensor = this.sensor_data;
+          console.log('about to check in');
           fetch(this.endpoint, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: { 'Content-Type': 'application/json' }
           })
-          .then(res => res.json())
-          .then((json) => {
-            // we have a successful server checkin - clear sensor data
-            this.sensor_data = [];
-            resolve(json)
+          .then((res) => {
+            if (res.ok) {
+              // we have a successful server checkin - clear sensor data
+              this.sensor_data = [];
+              resolve();
+            } else {
+              console.error('did not receive a valid checkin response from the server');
+              resolve();
+            }
           })
           .catch((err) => {
             console.log('unable to check into server')
