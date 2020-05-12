@@ -86,7 +86,15 @@ class ServerApi {
           v1_checkin_data.stats = this.filterStats(stats);
           let gps_time = data.gps.gps.time;
           data.gps = data.gps.mean;
-          data.gps.time = gps_time;
+          if (data.gps) {
+            data.gps.time = gps_time;
+          } else {
+            data.gps = {
+              lat: null,
+              lng: null,
+              time: null
+            }
+          }
           data.sensor = this.sensor_data;
           console.log('about to check in');
           fetch(this.endpoint, {
