@@ -71,7 +71,7 @@ class StationLeds {
 
   toggleAll(gps) {
     this.toggleGps(gps);
-    this.toggleInternet();
+    // this.toggleInternet();
     this.toggleOperational();
   }
 }
