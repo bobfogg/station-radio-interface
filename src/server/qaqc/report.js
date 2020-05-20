@@ -19,8 +19,8 @@ class QaqcReport {
       sensor: this.hardware_server_url + '/sensor/details',
       hardware:  this.hardware_server_url + '/peripherals'
     };
-    this.qaqc_tag = '78787878';
-    this.qaqc_beep_threshold = 2;
+    this.qaqc_tag = opts.qaqc_tag ? opts.qaqc_tag : '78787878';
+    this.qaqc_beep_threshold = opts.qaqc_beep_threshold ? opts.qaqc_beep_threshold : 3;
   }
 
   /**
