@@ -5,6 +5,9 @@ import { SensorPacket } from './sensor';
 import { HardwarePacket } from './hardware';
 import { ModemPacket } from './modem';
 
+/**
+ * generate a QAQC report by hitting hardware server endpoints, and provided station id / station stats
+ */
 class QaqcReport {
   constructor(opts) {
     this.station_id = opts.station_id;
@@ -54,6 +57,10 @@ class QaqcReport {
     });
   }
 
+  /**
+   * format gps data
+   * @param {*} gps_results data from gps daemon
+   */
   getGpsData(gps_results) {
     let lat = 0;
     let lng = 0;
@@ -83,6 +90,10 @@ class QaqcReport {
     }
   }
 
+  /**
+   * format modem info
+   * @param {*} modem - modem data from modem daemon
+   */
   getInfo(modem) {
     return {
       sim: modem.sim ? modem.sim : 0,
@@ -90,6 +101,10 @@ class QaqcReport {
     }
   }
 
+  /**
+   * format sensor data
+   * @param {*} sensor 
+   */
   getSensorInfo(sensor) {
     let battery = 0;
     let solar = 0;
@@ -111,6 +126,10 @@ class QaqcReport {
     }
   }
 
+  /**
+   * format hardware info - validate radio / usb hub counts
+   * @param {*} hardware 
+   */
   getHardwareInfo(hardware) {
     let now = new Date();
     let usb_hub_count = 0;
@@ -136,6 +155,10 @@ class QaqcReport {
     }
   }
 
+  /**
+   * parse signale strength, carrier, network from modem object
+   * @param {*} modem 
+   */
   getModemInfo(modem) {
     let signal = 0;
     let carrier = '';
@@ -148,6 +171,8 @@ class QaqcReport {
       } else {
         carrier = modem.carrier;
       }
+      values = modem.signal.split(',');
+      signal = parseInt(values[0]);
     }
     return {
       signal: signal,
@@ -156,6 +181,9 @@ class QaqcReport {
     }
   }
 
+  /**
+   * analyze stats to validate a specified number of specific tag beeps were received
+   */
   getQaqcTagResults() {
     let results = {
       1: false,
@@ -188,6 +216,10 @@ class QaqcReport {
     return results;
   }
 
+  /**
+   * generate packets for building a qaqc report
+   * @param {*} results - results from getResults
+   */
   generatePackets(results) {
     let gps = this.getGpsData(results.gps);
     let gps_packet = new GpsPacket({
@@ -227,6 +259,7 @@ class QaqcReport {
     });
 
     let modem = this.getModemInfo(results.modem);
+    console.log('MODEM', modem);
     let modem_packet = new ModemPacket({
       station_id: this.station_id,
       signal: modem.signal,
