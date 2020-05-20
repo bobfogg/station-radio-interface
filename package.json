@@ -10,6 +10,7 @@
     "build": "babel src -d lib",
     "dev": "node --inspect lib/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
+    "qaqc": "node lib/test/qaqc.js",
     "server-checkin": "node ./lib/test/checkin.js"
   },
   "repository": {
@@ -22,6 +23,7 @@
     "aws-sdk": "^2.656.0",
     "glob": "^7.1.4",
     "heartbeats": "^5.0.1",
+    "int64-buffer": "^0.99.1007",
     "lodash": "^4.17.15",
     "moment": "^2.24.0",
     "node-fetch": "^2.6.0",

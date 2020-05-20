@@ -26,13 +26,22 @@ class RadioReceiver extends EventEmitter {
     this.fw_version = null;
     this.commands = [];
     this.current_command = null;
-    this.delay = 0.25;
+    this.delay = 0.5;
 
     this.preset_commands = {
       "node": "preset:node3",
       "tag": "preset:fsktag",
       "ook": "prset:ooktag"
     }
+  }
+
+  /**
+   * 
+   * @param {msg} msg to transmit:  prefix with tx:
+   */
+  tx(msg) {
+    console.log('TX:', msg);
+    this.write('tx:'+msg.trim());
   }
 
   issuePresetCommand(cmd) {

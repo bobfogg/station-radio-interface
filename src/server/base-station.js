@@ -5,6 +5,7 @@ import { StationConfig } from './station-config';
 import { DataManager } from './data/data-manager';
 import { ServerApi } from './http/server-api';
 import { StationLeds } from './led/station-leds';
+import { QaqcReport }  from './qaqc/report';
 const fetch = require('node-fetch');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -137,6 +138,10 @@ class BaseStation {
         case('update-station'):
           this.runCommand('update-station');
           break;
+
+        case('qaqc'):
+          this.qaqc();
+          break;
         case('about'):
           fetch('http://localhost:3000/about')
             .then(res => res.json()) 
@@ -195,6 +200,30 @@ class BaseStation {
   }
 
   /**
+   * run qaqc - send diagnostics over radio
+   */
+  qaqc() {
+    console.log('qaqcin');
+    // use radio 1
+    let radio = this.active_radios[1];
+    let report = new QaqcReport({
+      station_id: this.station_id
+    });
+    report.getResults().then((results) => {
+      let packets = report.generatePackets(results);
+      let cmds = [];
+    
+      Object.keys(packets).forEach((key) => {
+        let packet = packets[key];
+        let msg = packet.packet.base64();
+        cmds.push('tx:'+msg);
+        console.log(key);
+      });
+      radio.issueCommands(cmds);
+    })
+  }
+
+  /**
    * checkin to the server
    */
   checkin() {
@@ -241,6 +270,7 @@ class BaseStation {
     // start data rotation timer
     // checkin after 10 seconds of station running
     setTimeout(this.checkin.bind(this), 10000);
+    // this.heartbeat.createEvent(5, this.qaqc.bind(this));
     this.heartbeat.createEvent(this.config.data.record.rotation_frequency_minutes*60, this.data_manager.rotate.bind(this.data_manager));
     this.heartbeat.createEvent(this.config.data.record.sensor_data_frequency_minutes*60, this.server_api.pollSensors.bind(this.server_api));
     this.heartbeat.createEvent(this.config.data.record.checkin_frequency_minutes*60, this.checkin.bind(this));
