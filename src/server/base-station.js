@@ -205,9 +205,12 @@ class BaseStation {
   qaqc() {
     console.log('qaqcin');
     // use radio 1
+    let stats = this.data_manager.stats.stats;
+
     let radio = this.active_radios[1];
     let report = new QaqcReport({
-      station_id: this.station_id
+      station_id: this.station_id,
+      stats: stats.channels
     });
     report.getResults().then((results) => {
       let packets = report.generatePackets(results);
@@ -220,7 +223,7 @@ class BaseStation {
         console.log(key);
       });
       radio.issueCommands(cmds);
-    })
+    });
   }
 
   /**

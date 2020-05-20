@@ -8,13 +8,16 @@ import { ModemPacket } from './modem';
 class QaqcReport {
   constructor(opts) {
     this.station_id = opts.station_id;
+    this.stats = opts.stats;
     this.hardware_server_url = 'http://localhost:3000';
     this.urls = {
       modem: this.hardware_server_url + '/modem',
       gps: this.hardware_server_url + '/gps',
       sensor: this.hardware_server_url + '/sensor/details',
       hardware:  this.hardware_server_url + '/peripherals'
-    }
+    };
+    this.qaqc_tag = '78787878';
+    this.qaqc_beep_threshold = 2;
   }
 
   /**
@@ -153,6 +156,38 @@ class QaqcReport {
     }
   }
 
+  getQaqcTagResults() {
+    let results = {
+      1: false,
+      2: false,
+      3: false,
+      4: false,
+      5: false
+    };
+    Object.keys(this.stats).forEach((channel) => {
+      let channel_data = this.stats[channel];
+      // check for radio tag data
+      Object.keys(channel_data.beeps).forEach((tag_id) => {
+        if (tag_id == this.qaqc_tag) {
+          let cnt = channel_data.beeps[tag_id];
+          if (cnt > this.qaqc_beep_threshold) {
+            results[channel] = true;
+          }
+        }
+      })
+      // check for node tag data
+      Object.keys(channel_data.nodes.beeps).forEach((tag_id) => {
+        if (tag_id == this.qaqc_tag) {
+          let cnt = channel_data.nodes.beeps[tag_id];
+          if (cnt > this.qaqc_beep_threshold) {
+            results[channel] = true;
+          }
+        }
+      })
+    });
+    return results;
+  }
+
   generatePackets(results) {
     let gps = this.getGpsData(results.gps);
     let gps_packet = new GpsPacket({
@@ -181,11 +216,14 @@ class QaqcReport {
     });
 
     let hardware = this.getHardwareInfo(results.hardware);
+    let channel_qaqc = this.getQaqcTagResults();
+    console.log('CHANNEL', channel_qaqc);
     let hardware_packet = new HardwarePacket({
       station_id: this.station_id,
       usb_hub_count: hardware.usb_hub_count,
       radio_count: hardware.radio_count,
-      system_time: hardware.system_time
+      system_time: hardware.system_time,
+      channel_qaqc: channel_qaqc
     });
 
     let modem = this.getModemInfo(results.modem);
