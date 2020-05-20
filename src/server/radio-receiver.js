@@ -71,6 +71,11 @@ class RadioReceiver extends EventEmitter {
    */
   write(data) {
     console.log(`${moment(new Date()).utc().format('YYYY-MM-DD HH:mm:ss')} writing to radio ${this.channel}:  ${data.trim()}`)
+    // emit 'write' message  with data to write / channel
+    this.emit('write', {
+      msg: data.trim(),
+      channel: this.channel
+    });
     this.serialport.write(data.trim()+'\r\n', function(err) {
       if (err) {
         this.emit('error', `error writing to radio ${this.data()}; ${err.toString()}`);

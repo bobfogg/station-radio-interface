@@ -353,6 +353,9 @@ class BaseStation {
         this.active_radios[info.port_uri] = info;
         beep_reader.issueCommands(radio.config);
       });
+      beep_reader.on('write', (msg) => {
+        this.stationLog(`writing message to radio ${msg.channel}: ${msg.msg}`);
+      });
       beep_reader.on('close', (info) => {
         if (info.port_uri in Object.keys(this.active_radios)) {
         }
