@@ -17,8 +17,14 @@ class ModemPacket {
   }
 
   getPayload() {
+    let signal = 0;
+    try {
+      signal = parseInt(Math.abs(this.signal));
+    } catch (err) {
+      console.error('error parsing signal strength', this.signal);
+    }
     let buffer = Buffer.alloc(1)
-    buffer.writeUInt8(this.signal, 0);
+    buffer.writeUInt8(signal);
     let carrier = this.carrier;
     if (carrier.length > 8) {
       carrier = carrier.slice(0,8);
