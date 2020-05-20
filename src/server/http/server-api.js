@@ -95,15 +95,13 @@ class ServerApi {
             }
           } else {
             // we have valid gps data to send
-            gps_time = data.gps.gps.time;
             data.gps = {
-              lat: data.gps.mean.lat,
-              lng: data.gps.mean.lng,
-              time: data.gps.time
+              lat: data.gps.gps.lat,
+              lng: data.gps.gps.lon,
+              time: data.gps.gps.time
             }
           }
           data.sensor = this.sensor_data;
-          console.log('about to check in');
           fetch(this.endpoint, {
             method: 'POST',
             body: JSON.stringify(data),
