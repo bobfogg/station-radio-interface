@@ -70,7 +70,6 @@ class QaqcReport {
         }
         return prev;
       }, 0);
-      console.log('NSATS', nsats);
     }
     return {
       lat: lat,
@@ -135,7 +134,6 @@ class QaqcReport {
   }
 
   getModemInfo(modem) {
-    console.log('getting modem info', modem);
     let signal = 0;
     let carrier = '';
     let network = '';
@@ -174,7 +172,6 @@ class QaqcReport {
     });
 
     let sensor = this.getSensorInfo(results.sensor);
-    console.log('SENSOR', sensor)
     let sensor_packet = new SensorPacket({
       station_id: this.station_id,
       battery: sensor.battery,
@@ -184,7 +181,6 @@ class QaqcReport {
     });
 
     let hardware = this.getHardwareInfo(results.hardware);
-    console.log('hardware', hardware)
     let hardware_packet = new HardwarePacket({
       station_id: this.station_id,
       usb_hub_count: hardware.usb_hub_count,
@@ -193,7 +189,6 @@ class QaqcReport {
     });
 
     let modem = this.getModemInfo(results.modem);
-    console.log('modem', modem);
     let modem_packet = new ModemPacket({
       station_id: this.station_id,
       signal: modem.signal,
