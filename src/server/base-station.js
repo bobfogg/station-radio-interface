@@ -234,10 +234,10 @@ class BaseStation {
         // we have internet - check into server
         this.server_api.healthCheckin(this.data_manager.stats.stats)
         .then((response) => {
-          if (response.status == 'ok') {
+          if (response == true) {
             this.stationLog('server checkin success');
           } else {
-            this.stationLog('checkin fail', response);
+            this.stationLog('checkin failed');
           }
         })
         .catch((err) => {

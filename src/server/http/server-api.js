@@ -73,7 +73,7 @@ class ServerApi {
         let uri = `${this.hardware_endpoint}${post}`
         promises.push(fetch(uri).then(res => res.json()));
       });
-      return Promise.all(promises)
+      Promise.all(promises)
         .then((responses) => {
           return {
             'modem': responses[0],
@@ -111,10 +111,10 @@ class ServerApi {
             if (res.ok) {
               // we have a successful server checkin - clear sensor data
               this.sensor_data = [];
-              resolve();
+              resolve(true);
             } else {
               console.error('did not receive a valid checkin response from the server');
-              resolve();
+              resolve(false);
             }
           })
           .catch((err) => {
