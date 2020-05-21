@@ -26,7 +26,7 @@ class RadioReceiver extends EventEmitter {
     this.fw_version = null;
     this.commands = [];
     this.current_command = null;
-    this.delay = 0.5;
+    this.delay = 0.25;
 
     this.preset_commands = {
       "node": "preset:node3",
@@ -40,7 +40,6 @@ class RadioReceiver extends EventEmitter {
    * @param {msg} msg to transmit:  prefix with tx:
    */
   tx(msg) {
-    console.log('TX:', msg);
     this.write('tx:'+msg.trim());
   }
 
@@ -119,6 +118,7 @@ class RadioReceiver extends EventEmitter {
     });
     port.on('close', () => {
       this.emit('close', this.data());
+
       if (this.restart_on_close == true) {
         // restart the radio interface after given delay
         this.start(this.restart_ms);
@@ -145,6 +145,7 @@ class RadioReceiver extends EventEmitter {
       } catch(err) {
         // not a JSON document - emit the raw input
         console.error(err);
+        console.log(line);
         this.emit('raw', line);
         return;
       }
