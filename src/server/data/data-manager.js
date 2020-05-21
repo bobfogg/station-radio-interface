@@ -167,7 +167,6 @@ class DataManager {
         });
       });
     }, Promise.resolve(true))
-    .then(res => console.log('finished rotating data files'));
   }
 }
 

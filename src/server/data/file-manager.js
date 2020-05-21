@@ -78,8 +78,7 @@ export class FileManager {
       // check if the file exists before rotating
       fs.access(opts.fileuri, (err) => {
         if (err) {
-          // file does not exist
-          console.log('file does not exist - resolving false', opts.fileuri);
+          // file does not exist - likely not collecting any data
           resolve(false);
           return;
         }
