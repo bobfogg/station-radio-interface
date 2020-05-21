@@ -58,7 +58,6 @@ class QaqcPacket {
 
   base64() {
     let bytes = this.getMessageBytes();
-    console.log(bytes);
     return bytes.toString('base64');
   }
 }

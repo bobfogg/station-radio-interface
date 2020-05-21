@@ -249,7 +249,6 @@ class QaqcReport {
 
     let hardware = this.getHardwareInfo(results.hardware);
     let channel_qaqc = this.getQaqcTagResults();
-    console.log('CHANNEL', channel_qaqc);
     let hardware_packet = new HardwarePacket({
       station_id: this.station_id,
       usb_hub_count: hardware.usb_hub_count,
@@ -259,7 +258,6 @@ class QaqcReport {
     });
 
     let modem = this.getModemInfo(results.modem);
-    console.log('MODEM', modem);
     let modem_packet = new ModemPacket({
       station_id: this.station_id,
       signal: modem.signal,
