@@ -267,6 +267,29 @@ class BaseStation {
   }
 
   /**
+   * 
+   */
+  pollSensors() {
+    this.stationLog('polling sensor data');
+    try {
+      this.server_api.pollSensors();
+    } catch(err) {
+      this.stationLog(`error polling sensor data ${err.toString()}`);
+    }
+  }
+
+  rotateDataFiles() {
+    this.stationLog('rotating data files');
+    this.data_manager.rotate()
+    .then(() => {
+      this.stationLog('rotation finished');
+    })
+    .catch((err) => {
+      this.stationLog(`error rotating data files: ${err}`);
+    });
+  }
+
+  /**
    * start timers for writing data to disk, collecting GPS data
    */
   startTimers() {
@@ -274,8 +297,8 @@ class BaseStation {
     // checkin after 10 seconds of station running
     setTimeout(this.checkin.bind(this), 10000);
     // this.heartbeat.createEvent(5, this.qaqc.bind(this));
-    this.heartbeat.createEvent(this.config.data.record.rotation_frequency_minutes*60, this.data_manager.rotate.bind(this.data_manager));
-    this.heartbeat.createEvent(this.config.data.record.sensor_data_frequency_minutes*60, this.server_api.pollSensors.bind(this.server_api));
+    this.heartbeat.createEvent(this.config.data.record.rotation_frequency_minutes*60, this.rotateDataFiles.bind(this));
+    this.heartbeat.createEvent(this.config.data.record.sensor_data_frequency_minutes*60, this.pollSensors.bind(this));
     this.heartbeat.createEvent(this.config.data.record.checkin_frequency_minutes*60, this.checkin.bind(this));
     this.heartbeat.createEvent(this.config.data.led.toggle_frequency_seconds, this.toggleLeds.bind(this));
     this.heartbeat.createEvent(this.config.data.record.alive_frequency_seconds, this.writeAliveMsg.bind(this));
@@ -286,6 +309,7 @@ class BaseStation {
         if (this.config.data.gps.record === true) {
           // start gps timer
           this.heartbeat.createEvent(this.config.data.gps.seconds_between_fixes, (count, last) => {
+            this.stationLog('recording GPS fix');
             this.data_manager.handleGps(this.gps_client.info());
           });
         }
@@ -359,7 +383,11 @@ class BaseStation {
       beep_reader.on('write', (msg) => {
         this.stationLog(`writing message to radio ${msg.channel}: ${msg.msg}`);
       });
+      beep_reader.on('error', (err) => {
+        this.stationLog(`radio error on channel ${radio.channel};  ${err}`);
+      });
       beep_reader.on('close', (info) => {
+        this.stationLog(`radio closed ${radio.channel}`);
         if (info.port_uri in Object.keys(this.active_radios)) {
         }
       });
