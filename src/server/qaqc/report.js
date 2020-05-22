@@ -1,9 +1,12 @@
+const url = require('url');
 const fetch = require('node-fetch');
 import { StationInfoPacket } from './station-info';
 import { GpsPacket } from './gps';
 import { SensorPacket } from './sensor';
 import { HardwarePacket } from './hardware';
 import { ModemPacket } from './modem';
+import { ModuleIdPacket } from './module-id';
+import { ModuleSpecsPacket } from './module-specs';
 
 /**
  * generate a QAQC report by hitting hardware server endpoints, and provided station id / station stats
@@ -14,10 +17,11 @@ class QaqcReport {
     this.stats = opts.stats;
     this.hardware_server_url = 'http://localhost:3000';
     this.urls = {
-      modem: this.hardware_server_url + '/modem',
-      gps: this.hardware_server_url + '/gps',
-      sensor: this.hardware_server_url + '/sensor/details',
-      hardware:  this.hardware_server_url + '/peripherals'
+      modem: url.resolve(this.hardware_server_url, '/modem'),
+      gps: url.resolve(this.hardware_server_url, '/gps'),
+      sensor: url.resolve(this.hardware_server_url, '/sensor/details'),
+      hardware:  url.resolve(this.hardware_server_url, '/peripherals'),
+      about: url.resolve(this.hardware_server_url, '/about')
     };
     this.qaqc_tag = opts.qaqc_tag ? opts.qaqc_tag : '78787878';
     this.qaqc_beep_threshold = opts.qaqc_beep_threshold ? opts.qaqc_beep_threshold : 3;
@@ -217,6 +221,26 @@ class QaqcReport {
   }
 
   /**
+   * format data about the module from the hardware server
+   * 
+   * @param {*} about 
+   */
+  getAbout(about) {
+    let total_memory = 0, disk_size = 0;
+    total_memory = parseInt(Math.round(about.total_mem / 1024));
+    disk_size = parseInt(Math.round(about.disk_usage.total));
+    return {
+      hardware: about.hardware ? about.hardware : '',
+      revision: about.revision ? about.revision : '',
+      serial: about.serial ? about.serial : '',
+      total_memory: total_memory,
+      disk_size: disk_size,
+      image_date: about.station_image ? about.station_image : '1970-01-01',
+      software_update:about.station_software ? about.station_software : '1970-01-01'
+    }
+  }
+
+  /**
    * generate packets for building a qaqc report
    * @param {*} results - results from getResults
    */
@@ -265,12 +289,30 @@ class QaqcReport {
       network: modem.network
     });
 
+    let about = this.getAbout(results.about);
+    let module_id_packet = new ModuleIdPacket({
+      station_id: this.station_id,
+      hardware: about.hardware,
+      serial: about.serial,
+      revision: about.revision
+    });
+
+    let module_specs_packet = new ModuleSpecsPacket({
+      station_id: this.station_id,
+      total_memory: about.total_memory,
+      disk_size: about.disk_size,
+      image_date: about.image_date,
+      software_update: about.software_update
+    });
+
     return {
       info: info_packet,
       gps: gps_packet,
       sensor: sensor_packet,
       hardware: hardware_packet,
-      modem: modem_packet
+      modem: modem_packet,
+      module_id: module_id_packet,
+      module_specs: module_specs_packet
     }
   }
 }
