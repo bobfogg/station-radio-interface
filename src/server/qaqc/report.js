@@ -297,7 +297,6 @@ class QaqcReport {
       revision: about.revision
     });
 
-    console.log(about);
     let module_specs_packet = new ModuleSpecsPacket({
       station_id: this.station_id,
       total_memory: about.total_memory,

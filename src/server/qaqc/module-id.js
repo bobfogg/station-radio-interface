@@ -24,13 +24,10 @@ class ModuleIdPacket {
   getPayload() {
     // verify serial is 16 characters as expected - pad 0's if not
     let serial = this.serial.padStart(16, '0').slice(0,16);
-    console.log(serial);
     let serial_buffer = Buffer.from(serial, 'hex');
     let hardware = this.hardware.padStart(8,' ');
-    console.log(hardware);
     let hardware_buffer = Buffer.from(hardware);
     let revision = this.revision.padStart(6,'0').slice(0,6);
-    console.log(revision);
     let revision_buffer = Buffer.from(revision, 'hex');
     return Buffer.concat([
       serial_buffer,
