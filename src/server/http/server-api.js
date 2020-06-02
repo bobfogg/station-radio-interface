@@ -65,10 +65,30 @@ class ServerApi {
       })
   }
 
+  /**
+   * Clean GPS data from aggregated qaqc report information
+   * @param {*} data 
+   */
+  cleanGps(data) {
+    let gps = {
+      lat: null,
+      lng: null,
+      time: null
+    }
+    if (data.gps) {
+      if (data.gps.gps) {
+        gps.lat = data.gps.gps.lat;
+        gps.lng = data.gps.gps.lon;
+        gps.time = data.gps.gps.time;
+      }
+    }
+    return gps;
+  }
+
   healthCheckin(stats) {
     return new Promise((resolve, reject) => {
-
       let promises = [];
+      // generate list of promises to post requests to hardware server
       this.details.forEach((post) => {
         let uri = `${this.hardware_endpoint}${post}`
         promises.push(fetch(uri).then(res => res.json()));
@@ -84,24 +104,11 @@ class ServerApi {
           }
         })
         .then((data) => {
-          let v1_checkin_data = data 
-          v1_checkin_data.stats = this.filterStats(stats);
-          if (Object.keys(data.gps).length == 0) {
-            // no gps data available
-            data.gps = {
-              lat: null,
-              lng: null,
-              time: null
-            }
-          } else {
-            // we have valid gps data to send
-            data.gps = {
-              lat: data.gps.gps.lat,
-              lng: data.gps.gps.lon,
-              time: data.gps.gps.time
-            }
-          }
+          // aggregated reponses from hardware server requests
+          // clean gps coordinates
+          data.gps = this.cleanGps(data);
           data.sensor = this.sensor_data;
+          // initialize server checkin
           fetch(this.endpoint, {
             method: 'POST',
             body: JSON.stringify(data),
