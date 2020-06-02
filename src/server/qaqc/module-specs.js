@@ -33,14 +33,12 @@ class ModuleSpecsPacket {
     if (days > 65535) {
       days = 65535;
     }
-    console.log(date, days);
     return days;
   }
 
   getPayload() {
     // verify serial is 16 characters as expected - pad 0's if not
     let disk_buffer = Buffer.alloc(8);
-    console.log(this.disk_size, this.total_memory, this.image_date, this.software_update);
     disk_buffer.writeUInt32LE(this.disk_size);
 
     let memory_buffer = Buffer.alloc(8);
