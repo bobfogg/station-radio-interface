@@ -37,7 +37,7 @@ class GpsPacket {
 
     if (this.mode) {
       buffer.writeInt32LE(Math.round(this.lat*1000000), 0);
-      buffer.writeInt32LE(Math.round(this.lat*1000000), 4);
+      buffer.writeInt32LE(Math.round(this.lng*1000000), 4);
       buffer.writeUInt8(this.mode, 8);
       buffer.writeUInt8(this.nsats, 9);
     }
