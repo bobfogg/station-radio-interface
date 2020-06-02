@@ -38,10 +38,10 @@ class ModuleSpecsPacket {
 
   getPayload() {
     // verify serial is 16 characters as expected - pad 0's if not
-    let disk_buffer = Buffer.alloc(8);
+    let disk_buffer = Buffer.alloc(4);
     disk_buffer.writeUInt32LE(this.disk_size);
 
-    let memory_buffer = Buffer.alloc(8);
+    let memory_buffer = Buffer.alloc(4);
     memory_buffer.writeUInt32LE(this.total_memory);
 
     let date = new Date(this.image_date);
