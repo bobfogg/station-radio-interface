@@ -203,11 +203,10 @@ class BaseStation {
    * run qaqc - send diagnostics over radio
    */
   qaqc() {
-    console.log('qaqcin');
+    this.log('init QAQC report');
     // use radio 1
-    let stats = this.data_manager.stats.stats;
-
     let radio = this.active_radios[1];
+    let stats = this.data_manager.stats.stats;
     let report = new QaqcReport({
       station_id: this.station_id,
       stats: stats.channels
@@ -220,7 +219,6 @@ class BaseStation {
         let packet = packets[key];
         let msg = packet.packet.base64();
         cmds.push('tx:'+msg);
-        console.log(key);
       });
       radio.issueCommands(cmds);
     });

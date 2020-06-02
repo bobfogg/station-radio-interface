@@ -22,7 +22,6 @@ class SensorPacket {
 
   getPayload() {
     let buffer = Buffer.alloc(8);
-    console.log(this.convert(this.rtc));
     buffer.writeUInt16LE(this.convert(this.battery), 0);
     buffer.writeUInt16LE(this.convert(this.solar), 2);
     buffer.writeUInt16LE(this.convert(this.rtc), 4);

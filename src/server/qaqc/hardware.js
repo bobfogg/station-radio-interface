@@ -30,7 +30,6 @@ class HardwarePacket {
         results |= mask;
       }
     })
-    console.log('res', results);
     return results;
   }
 
