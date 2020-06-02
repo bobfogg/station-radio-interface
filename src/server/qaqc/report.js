@@ -146,7 +146,7 @@ class QaqcReport {
       }
 
       if (component.vendor == '0424') {
-        if (component.vendor == '2514') {
+        if (component.product == '2514') {
           usb_hub_count += 1;
         }
       }
