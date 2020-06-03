@@ -11,7 +11,8 @@ class ServerApi {
       //'peripherals',
       'gps',
       'about',
-      'internet/pending-upload'
+      'internet/pending-upload',
+      'node/version'
     ]
     this.sensor_data = [];
     this.max_sensor_records = 100;
@@ -100,7 +101,8 @@ class ServerApi {
             //'peripherals': responses[2],
             'gps': responses[2],
             'about': responses[3],
-            'uploads': responses[4]
+            'uploads': responses[4],
+            'software': responses[5]
           }
         })
         .then((data) => {
