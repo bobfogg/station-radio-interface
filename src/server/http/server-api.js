@@ -110,6 +110,7 @@ class ServerApi {
           // clean gps coordinates
           data.gps = this.cleanGps(data);
           data.sensor = this.sensor_data;
+          data.stats = this.filterStats(stats);
           // initialize server checkin
           fetch(this.endpoint, {
             method: 'POST',
