@@ -1,6 +1,6 @@
 {
   "name": "station-radio-interface",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "read data from radio serial ports / write to disk",
   "main": "lib/index.js",
   "scripts": {
