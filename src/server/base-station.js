@@ -77,7 +77,8 @@ class BaseStation {
             id: this.station_id, 
             base_log_dir: base_log_dir,
             date_format: this.date_format,
-            flush_data_cache_seconds: this.config.data.record.flush_data_cache_seconds
+            flush_data_cache_seconds: this.config.data.record.flush_data_cache_seconds,
+            radios: this.config.data.radios
           });
 
           this.log_filename = `sensor-station-${this.station_id}.log`;

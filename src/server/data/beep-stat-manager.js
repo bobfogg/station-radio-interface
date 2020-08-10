@@ -1,11 +1,12 @@
 class BeepStatManager {
-  constructor() {
+  constructor(opts) {
+    this.radios = opts.radios;
     this.stats = {
       channels: {}
     }
-    for (let i=1; i<=5; i++) {
-      this.addStatChannel(i);
-    }
+    this.radios.forEach((radio) => {
+      this.addStatChannel(radio.channel);
+    });
   }
 
   addStatChannel(channel) {
