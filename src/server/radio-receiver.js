@@ -30,8 +30,8 @@ class RadioReceiver extends EventEmitter {
 
     this.preset_commands = {
       "node": "preset:node3",
-      "tag": "preset:fsktag",
-      "ook": "prset:ooktag"
+      "tag":  "preset:fsktag",
+      "ook":  "preset:ooktag"
     }
   }
 
