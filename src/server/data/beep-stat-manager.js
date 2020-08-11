@@ -1,16 +1,24 @@
+/**
+ * class for managing tag stats
+ */
 class BeepStatManager {
-  constructor(opts) {
-    this.radios = opts.radios;
+  /**
+   * initialize stats document
+   */
+  constructor() {
     this.stats = {
       channels: {}
     }
-    this.radios.forEach((radio) => {
-      this.addStatChannel(radio.channel);
-    });
   }
 
+  /**
+   * 
+   * @param {*} channel 
+   * 
+   *  add empty stat document for a given channel
+   */
   addStatChannel(channel) {
-    this.stats.channels[channel] = {
+    let channel_data = {
       beeps: {},
       nodes: {
         beeps: {},
@@ -18,14 +26,33 @@ class BeepStatManager {
       },
       telemetry: {},
     }
+    this.stats.channels[channel] = channel_data;
+    return channel_data;
   }
 
+  /**
+   * 
+   * @param {*} record - beep data
+   *  
+   *  get in memory stat document for a given record by channel id - create the entry if does not exist
+   */
   getChannel(record) {
-    return this.stats.channels[record.RadioId];
+    if (Object.keys(this.stats.channels).includes(record.RadioId.toString())) {
+      return this.stats.channels[record.RadioId];
+    } else {
+      return this.addStatChannel(record.RadioId);
+    }
   }
 
+  /**
+   * 
+   * @param {*} record 
+   * 
+   *  bump tag stats for beep
+   */
   addBeep(record) {
     let channel = this.getChannel(record);
+
     let beep_stats;
     if (record.NodeId.length > 0) {
       // from a node
@@ -40,6 +67,12 @@ class BeepStatManager {
     }
   }
 
+  /**
+   * 
+   * @param {*} record 
+   * 
+   *  bump telemetry stats for given id
+   */
   addTelemetryBeep(record) {
     let channel = this.getChannel(record);
     let hardware_id = record.Id;
@@ -50,6 +83,12 @@ class BeepStatManager {
     }
   }
 
+  /**
+   * 
+   * @param {*} record 
+   * 
+   *  add node health report to health document for given node
+   */
   addNodeHealth(record) {
     let channel = this.getChannel(record);
     let node_id = record.NodeId;

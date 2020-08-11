@@ -20,10 +20,7 @@ class DataManager {
     this.id = opts.id;
     this.base_log_dir = opts.base_log_dir;
     this.date_format = opts.date_format;
-    this.radios = opts.radios;
-    this.stats = new BeepStatManager({
-      radios: this.radios
-    });
+    this.stats = new BeepStatManager();
 
     // utility for maintaining filenames for given id, descriptor (suffix)
     this.file_manager = new FileManager({
