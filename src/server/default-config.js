@@ -34,6 +34,55 @@ export default {
             "preset:fsktag"
         ],
         record: true
+    },{
+        channel: 6,
+        path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.4.4:1.0",
+        config: [
+          "preset:fsktag"
+        ],
+        record: true
+      },{
+        channel: 7,
+        path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.4.3:1.0",
+        config: [
+          "preset:fsktag"
+        ],
+        record: true
+      },{
+        channel: 8,
+        path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.4.2:1.0",
+        config: [
+          "preset:fsktag"
+        ],
+        record: true
+      },{
+        channel: 9,
+        path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.4.1:1.0",
+        config: [
+          "preset:fsktag"
+        ],
+        record: true
+      },{
+        channel: 10,
+        path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.1:1.0",
+        config: [
+          "preset:fsktag"
+        ],
+        record: true
+      },{
+        channel: 11,
+        path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.3:1.0",
+        config: [
+          "preset:fsktag"
+        ],
+        record: true
+      },{
+        channel: 12,
+        path: "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.2.4:1.0",
+        config: [
+          "preset:fsktag"
+        ],
+        record: true
     }],
     http: {
         websocket_port: 8001,
