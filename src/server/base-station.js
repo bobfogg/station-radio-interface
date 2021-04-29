@@ -229,24 +229,16 @@ class BaseStation {
    */
   checkin() {
     this.stationLog('server checkin initiated');
-    this.server_api.checkInternet()
-      .then((internet_status) => {
-      if (internet_status == true) {
-        // we have internet - check into server
-        this.server_api.healthCheckin(this.data_manager.stats.stats)
-        .then((response) => {
-          if (response == true) {
-            this.stationLog('server checkin success');
-          } else {
-            this.stationLog('checkin failed');
-          }
-        })
-        .catch((err) => {
-          this.stationLog('server checkin error', err.toString());
-        });
+    this.server_api.healthCheckin(this.data_manager.stats.stats)
+    .then((response) => {
+      if (response == true) {
+        this.stationLog('server checkin success');
       } else {
-        this.stationLog('no internet - ignoring server checkin');
+        this.stationLog('checkin failed');
       }
+    })
+    .catch((err) => {
+      this.stationLog('server checkin error', err.toString());
     });
   }
 
