@@ -115,7 +115,8 @@ class ServerApi {
           fetch(this.endpoint, {
             method: 'POST',
             body: JSON.stringify(data),
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 5000
           })
           .then((res) => {
             if (res.ok) {
