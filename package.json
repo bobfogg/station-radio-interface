@@ -24,7 +24,7 @@
     "node-gpsd": "^0.3.0",
     "serialport": "^7.1.4",
     "usb": "^1.6.0",
-    "ws": "^7.0.1"
+    "ws": "^7.4.6"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
